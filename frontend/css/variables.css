@@ -1,0 +1,77 @@
+/* Design System & Variables - TalentLab */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    /* Color Palette (Premium Slate Light Mode) */
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f1f5f9;
+    
+    /* Brand Colors (Vibrant Slate Accents) */
+    --primary: #6d28d9;       /* Rich Violet */
+    --primary-glow: rgba(109, 40, 217, 0.15);
+    --secondary: #0891b2;     /* Deep Teal */
+    --secondary-glow: rgba(8, 145, 178, 0.15);
+    
+    /* Semantic Status Colors (Semáforo de Deserción) */
+    --color-danger: #ef4444;    /* Riesgo Alto - Rojo Vibrante */
+    --color-warning: #f59e0b;   /* Riesgo Medio - Ámbar Cálido */
+    --color-success: #10b981;   /* Riesgo Bajo - Verde Esmeralda */
+    --color-info: #3b82f6;      /* Azul Informativo */
+    
+    /* Text Colors */
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --text-dark: #1e293b;
+    
+    /* Glassmorphism & Borders */
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(15, 23, 42, 0.08);
+    --glass-shadow: rgba(15, 23, 42, 0.04);
+    
+    /* Border Radii */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    --radius-full: 9999px;
+    
+    /* Transitions */
+    --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Typography */
+    --font-family: 'Outfit', sans-serif;
+}
+
+/* Base Global Reset */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: var(--font-family);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+    overflow-x: hidden;
+    line-height: 1.6;
+}
+
+/* Premium Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
