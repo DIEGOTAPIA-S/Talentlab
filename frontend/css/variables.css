@@ -2,16 +2,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-    /* Color Palette (Premium Slate Light Mode) */
-    --bg-primary: #f8fafc;
-    --bg-secondary: #ffffff;
-    --bg-tertiary: #f1f5f9;
+    /* Color Palette (Premium Dark Mode) */
+    --bg-primary: #0f172a;    /* Deep Slate */
+    --bg-secondary: #1e293b;  /* Slate */
+    --bg-tertiary: #334155;   /* Light Slate */
     
     /* Brand Colors (Vibrant Slate Accents) */
-    --primary: #6d28d9;       /* Rich Violet */
-    --primary-glow: rgba(109, 40, 217, 0.15);
-    --secondary: #0891b2;     /* Deep Teal */
-    --secondary-glow: rgba(8, 145, 178, 0.15);
+    --primary: #8b5cf6;       /* Vibrant Violet */
+    --primary-glow: rgba(139, 92, 246, 0.25);
+    --secondary: #06b6d4;     /* Cyan/Teal */
+    --secondary-glow: rgba(6, 182, 212, 0.25);
     
     /* Semantic Status Colors (Semáforo de Deserción) */
     --color-danger: #ef4444;    /* Riesgo Alto - Rojo Vibrante */
@@ -20,14 +20,14 @@
     --color-info: #3b82f6;      /* Azul Informativo */
     
     /* Text Colors */
-    --text-main: #0f172a;
-    --text-muted: #64748b;
-    --text-dark: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-dark: #cbd5e1;
     
     /* Glassmorphism & Borders */
-    --glass-bg: rgba(255, 255, 255, 0.85);
-    --glass-border: rgba(15, 23, 42, 0.08);
-    --glass-shadow: rgba(15, 23, 42, 0.04);
+    --glass-bg: rgba(30, 41, 59, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shadow: rgba(0, 0, 0, 0.4);
     
     /* Border Radii */
     --radius-sm: 8px;
