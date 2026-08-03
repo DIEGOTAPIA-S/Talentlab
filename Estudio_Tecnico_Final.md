@@ -156,4 +156,116 @@ La operación física de TalentLab se acopla a la normatividad local de planific
 *   **Impacto Ambiental Urbano:** La sede de la empresa se limitará a oficinas de carácter administrativo, de diseño y reuniones estratégicas, por lo cual **no genera emisiones de ruido, contaminación del aire, residuos peligrosos o vertimientos industriales perjudiciales**. La empresa cumple con creces las normativas de la Secretaría Distrital de Ambiente aplicables a zonas urbanas comerciales.
 *   **Estrategia Híbrida de Movilidad y Teletrabajo:** El POT de Bogotá incentiva la descentralización del transporte y el cuidado de la huella ecológica de movilidad. Alineado con esto, TalentLab adoptará una modalidad de **trabajo híbrido (80% teletrabajo / 20% presencial)**. Esto permite operar en una oficina pequeña de 40 metros cuadrados para tareas gerenciales, reduciendo el consumo de energía presencial, los tiempos de desplazamiento de los ingenieros y disminuyendo las emisiones asociadas al transporte urbano de la ciudad.
 
+---
+
+## 3.5. NECESIDADES Y REQUERIMIENTOS
+
+Para asegurar una puesta en marcha coordinada y una operación continua con altos estándares de calidad, se requiere una combinación estructurada de recursos físicos, mobiliario ergonómico, hardware informático e infraestructura de servicios cloud (maquinaria lógica). A continuación, se detallan estos requerimientos clasificados por áreas y su respectiva valorización comercial.
+
+### 3.5.1. Locaciones e Instalaciones
+
+La empresa operará bajo un modelo administrativo centralizado de oficina única en Bogotá, localidad de Chapinero. Para esto, se ha proyectado el arrendamiento de una oficina física de **40 metros cuadrados** dentro de un complejo empresarial o coworking equipado (como WeWork o Regus).
+
+*   **Canon de Arrendamiento Mensual:** **COP $1,800,000** (Incluye servicios de energía eléctrica, agua potable, aseo diario, vigilancia 24/7, acceso a áreas comunes y conexión a internet empresarial de alta velocidad por fibra óptica).
+*   **Contrato:** Arrendamiento anual corporativo.
+
+#### Plano de Distribución de Áreas de Trabajo
+
+El espacio se ha diseñado ergonómicamente para optimizar el flujo de trabajo de desarrollo de software y las reuniones comerciales, distribuyendo las áreas de la siguiente manera:
+
+```
++-------------------------------------------------------------+
+|                          ACCESO                             |
++---------+----------------------------+----------------------+
+|         |                            |                      |
+|         |      ÁREA DE DESARROLLO    |     CAFETERÍA        |
+|  RECEPC.|      (4 Workstations)      |      Y BIENESTAR     |
+|  (Desk) |      [PC1]      [PC2]      |                      |
+|         |                            |   +--------+         |
+|         |      [PC3]      [PC4]      |   | Cafet. |  [Baño] |
+|         |                            |   +--------+         |
++---------+----------------------------+----------------------+
+|                                      |                      |
+|          SALA DE REUNIONES           |      ARCHIVADOR      |
+|           Y ONBOARDING B2B           |         Y            |
+|       +----------------------+       |      SERVICIOS       |
+|       |        Mesa          |       |                      |
+|       +----------------------+       |                      |
++--------------------------------------+----------------------+
+```
+
+### 3.5.2. Maquinaria, Equipo y Herramientas
+
+Por ser una empresa proveedora de software basada en tecnologías EdTech e Inteligencia Artificial, **no se requiere maquinaria física, equipos industriales ni herramientas mecánicas**. La "maquinaria" de TalentLab está compuesta por infraestructura virtual e intangibles alojados en la nube.
+
+| Tipo de Herramienta / Servicio | Características Técnicas | Cantidad | Costo Mensual (COP) | Costo Anual Consolidado (COP) | Función en el Proceso |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Bases de Datos Cloud (Supabase)** | PostgreSQL gestionado, backups diarios integrados, capacidad para 100 mil registros en base de datos. Plan Pro. | 1 | $100,000 | $1,200,000 | Almacenamiento seguro de notas, asistencia y datos multi-tenant de usuarios. |
+| **Servidores de API (Render / AWS)** | Hosting del backend en FastAPI, procesamiento asíncrono y autoescalamiento. | 1 | $60,000 | $720,000 | Recepción y procesamiento de peticiones lógicas del semáforo e IA. |
+| **Procesamiento de IA y PLN (OpenAI)** | APIs para el simulador de entrevistas (análisis semántico de las respuestas). | Variable | $120,000 | $1,440,000 | Motor cognitivo del simulador de entrevistas para estudiantes. |
+| **Herramientas de Programación (IDE)** | VS Code, Git, Docker (entorno local). | Ilimitado | $0 | $0 | Herramientas libres para codificación y contenedorización. |
+| **TOTALES MAQUINARIA LÓGICA** | **Servicios de Nube Año 1** | | **$280,000** | **$3,360,000** | |
+
+### 3.5.3. Muebles y Enseres de Operación
+
+Mobiliario requerido para la puesta en marcha física de la oficina, enfocado en cumplir las directrices de salud ocupacional y ergonomía:
+
+| Elemento / Mobiliario | Características Técnicas | Cantidad | Costo Unitario (COP) | Costo Total (COP) | Función en el Proceso |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Sillas Ergonómicas** | Asiento ajustable en altura, soporte lumbar ajustable, ruedas de nailon y apoyabrazos. | 4 | $450,000 | $1,800,000 | Postura correcta del equipo técnico durante jornadas de trabajo. |
+| **Escritorios Modulares** | Superficie de madera aglomerada de 120x60 cm con pasacables y estructura metálica. | 4 | $300,000 | $1,200,000 | Estaciones de desarrollo y diseño UI de la plataforma. |
+| **Mesa de Juntas** | Mesa ovalada en melamina para 4-6 personas. | 1 | $500,000 | $500,000 | Presentaciones B2B con rectores y reuniones de planeación técnica. |
+| **Sillas Auxiliares de Reunión** | Silla fija sin ruedas, tapizada en tela lavable. | 4 | $150,000 | $600,000 | Acompañamiento en reuniones de la sala de juntas. |
+| **Tablero Acrílico de Vidrio** | Tablero magnético de 120x90 cm. | 1 | $150,000 | $150,000 | Lluvia de ideas, diagramación física de base de datos y flujos. |
+| **Archivador Metálico** | Archivador de 3 gavetas con cerradura de seguridad. | 1 | $250,000 | $250,000 | Custodia de contratos físicos y carpetas legales de la empresa. |
+| **TOTAL MUEBLES Y ENSERES** | **Inversión Inicial Única** | | | **$4,500,000** | |
+
+### 3.5.4. Equipos de Oficina
+
+Hardware informático, conectividad y redes requeridos para la oficina administrativa y el desarrollo del software:
+
+| Equipo Tecnológico | Especificaciones Técnicas Recomendadas | Cantidad | Costo Unitario (COP) | Costo Total (COP) | Función en el Proceso |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Laptops de Desarrollo** | Procesador Intel Core i7 / AMD Ryzen 7, 16 GB de Memoria RAM, 512 GB SSD. Pantalla Full HD. | 2 | $3,800,000 | $7,600,000 | Equipos principales para programación en React y FastAPI. |
+| **Monitores Secundarios** | Monitor de 24 pulgadas Full HD con entrada HDMI / DisplayPort. | 2 | $550,000 | $1,100,000 | Mejora en la visualización de código y bases de datos a doble pantalla. |
+| **Router Dual-Band** | Enrutador comercial AC1200 Gigabit con WiFi 5/6 de largo alcance. | 1 | $250,000 | $250,000 | Redundancia y estabilidad en la red interna de la oficina. |
+| **Impresora Multifuncional** | Impresora láser en blanco y negro con escáner e impresión doble cara automática. | 1 | $900,000 | $900,000 | Impresión de contratos comerciales y digitalización de reportes de PQRSD. |
+| **TOTAL EQUIPOS DE COMPUTO** | **Inversión Inicial Única** | | | **$9,850,000** | |
+
+### 3.5.5. Materias Primas e Insumos Requeridos
+
+En el modelo de negocio SaaS (Software como Servicio), **no existen materias primas físicas** (como plástico, metal o madera). Las materias primas del producto digital están constituidas por el **consumo de infraestructura de procesamiento cloud por cada unidad de producto comercializada** (es decir, por cada institución que adquiere la licencia B2B).
+
+*   **Unidad de Producto:** 1 Suscripción Anual B2B de una Institución Educativa.
+*   **Estimación de Insumos por Cliente (Mensual):** Basado en un promedio de 1,000 estudiantes activos por institución.
+
+#### Costo Unitario de Insumos Digitales por Licencia Activa (Mensual)
+
+| Insumo Digital / Recurso | Función Técnica | Cantidad Estimada | Costo Unitario Mensual (COP) | Justificación del Consumo |
+| :--- | :--- | :--- | :---: | :--- |
+| **Procesamiento API NLP** | API de análisis cognitivo de respuestas en simulador. | ~3,000 llamadas al mes | $15,000 | Evaluar la concordancia semántica de las respuestas de estudiantes en el simulador. |
+| **Almacenamiento Supabase** | Espacio en la nube para audio, video y reportes PDF. | 4 GB por cliente / mes | $8,500 | Registro histórico de evidencias de aprendizaje y reportes del semáforo. |
+| **Tráfico SMTP (Emails)** | Envío de correos de alerta automáticos a mentores y padres. | 2,000 emails / mes | $2,500 | Comunicación de alertas críticas del semáforo y credenciales de acceso. |
+| **TOTAL CONSUMO MENSUAL** | **Insumo por Cliente / Mes** | | **$26,000** | **Representa el 6.9% del precio mensualizado de la licencia.** |
+
+*   **Presupuesto Consolidado de Insumos (Año 1):** Con una meta de ventas de doce (12) licencias en el primer año:
+    $$\text{Insumo Anual} = \text{COP } \$26,000 \times 12 \text{ clientes} \times 12 \text{ meses} = \text{COP } \$3,744,000 \text{ al año.}$$
+*   **Justificación de Viabilidad:** Al requerir un costo variable por cliente de solo COP $26,000 al mes (frente a un ingreso por cliente de COP $375,000 mensualizados), el producto garantiza un margen bruto operativo por licencia del **93.1%**, demostrando la altísima rentabilidad y escalabilidad del SaaS.
+
+### 3.5.6. Fuentes y Referencias de Costos y Especificaciones
+
+A continuación, se relacionan bajo las normas **APA (7ª edición)** las fuentes de información secundarias y los portales oficiales de consulta externa utilizados para sustentar los precios de mercado, las especificaciones técnicas del hardware, el mobiliario y la normatividad legal e inmobiliaria aplicadas al estudio técnico del proyecto:
+
+*   Alcaldía Mayor de Bogotá. (2021). *Decreto 555 de 2021: Por el cual se adopta la revisión general del Plan de Ordenamiento Territorial de Bogotá D.C.* Secretaría Distrital de Planeación. Registro Distrital No. 7310. https://www.sdp.gov.co/normatividad/pot/decreto-555-de-2021
+*   Alkosto. (2026). *Computadores portátiles corporativos y monitores externos.* Portal comercial Alkosto Colombia. https://www.alkosto.com/computadores-tablets/portatiles/c/BI_104_ALKOS
+*   Congreso de la República de Colombia. (2012, 17 de octubre). *Ley 1581 de 2012: Por la cual se dictan disposiciones generales para la protección de datos personales.* Diario Oficial No. 48.587. http://www.secretariasenado.gov.co/senado/basedoc/ley_1581_2012.html
+*   Dell Technologies Colombia. (2026). *Portátiles empresariales Dell Vostro y accesorios de visualización.* Dell Colombia. https://www.dell.com/es-co/work/shop/scc/sc/laptops
+*   Homecenter Colombia. (2026). *Mobiliario de oficina, impresoras láser multifuncionales y enrutadores de red inalámbricos.* Sodimac Colombia. https://www.homecenter.com.co/homecenter-co/category/cat10068/oficina/
+*   OpenAI. (2026). *API pricing: Cost per token for language models (GPT-3.5 and GPT-4o).* OpenAI Developer Platform. https://openai.com/pricing
+*   Regus Colombia. (2026). *Oficinas privadas y espacios de trabajo flexible en Bogotá (Chapinero).* Regus Group. https://www.regus.com/es-co/colombia/bogota
+*   Supabase Inc. (2026). *Supabase pricing plans: Database, user auth, and storage costs.* Supabase Platform. https://supabase.com/pricing
+*   Tugó. (2026). *Mobiliario de oficina ergonómico y escritorios modulares.* Tugó Proyectos. https://www.tugo.co/oficina
+*   WeWork Colombia. (2026). *Espacios de oficina privados y compartidos en Bogotá (Calle 72).* WeWork Inc. https://www.wework.com/es-CO/l/bogota
+
+
 

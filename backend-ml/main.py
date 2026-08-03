@@ -1,8 +1,23 @@
+import os
 import uvicorn
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Dict, Any
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# Cargar variables de entorno (Supabase URL y Key)
+load_dotenv()
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    supabase = None
+    print("ADVERTENCIA: No se detectaron credenciales de Supabase. El sistema usará datos simulados.")
 
 app = FastAPI(
     title="TalentLab API Backend",
@@ -115,7 +130,40 @@ def login(payload: LoginRequest):
 
 @app.get("/api/dashboard/risk-semaphore")
 def get_risk_semaphore():
-    # Returns the list of evaluated B2C students risk indicators for B2B dashboards
+    # Attempt to fetch real data from Supabase
+    try:
+        if supabase:
+            response = supabase.table("student_risk_profiles").select("*").execute()
+            profiles = response.data
+            
+            if profiles and len(profiles) > 0:
+                high = sum(1 for p in profiles if p.get("nivel_riesgo") == "alto")
+                medium = sum(1 for p in profiles if p.get("nivel_riesgo") == "medio")
+                low = sum(1 for p in profiles if p.get("nivel_riesgo") == "bajo")
+                
+                # Transform to frontend expected format
+                real_students = []
+                for p in profiles:
+                    factores = p.get("factores_clave", {})
+                    real_students.append({
+                        "name": factores.get("nombre_estudiante", "Estudiante Registrado"),
+                        "program": factores.get("programa", "Desconocido"),
+                        "risk": p.get("nivel_riesgo", "bajo"),
+                        "factor": factores.get("factor", "Estable"),
+                        "score": f"{int(p.get('probabilidad_desercion', 0) * 100)}%"
+                    })
+                    
+                return {
+                    "totalEvaluated": len(profiles),
+                    "highRiskCount": high,
+                    "mediumRiskCount": medium,
+                    "lowRiskCount": low,
+                    "students": real_students
+                }
+    except Exception as e:
+        print(f"Error fetching from Supabase: {e}")
+
+    # Fallback to MOCK_STUDENTS if Supabase fails or is empty
     return {
         "totalEvaluated": 96,
         "highRiskCount": 26,
