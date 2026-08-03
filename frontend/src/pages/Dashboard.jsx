@@ -51,35 +51,9 @@ export default function Dashboard() {
   if (!session) return null; // loading or redirecting
 
   return (
-    <div className="dashboard-layout">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div>
-          <Link to="/dashboard" className="sidebar-brand">
-            <i className="fa-solid fa-flask-bubble"></i> Talent<span>Lab</span>
-          </Link>
-          <ul className="sidebar-menu">
-            <li className="sidebar-item active">
-              <Link to="/dashboard"><i className="fa-solid fa-chart-line"></i> Dashboard Riesgo</Link>
-            </li>
-            <li className="sidebar-item">
-              <a href="#"><i className="fa-solid fa-users"></i> Alumnos Registrados</a>
-            </li>
-            <li className="sidebar-item">
-              <a href="#"><i className="fa-solid fa-file-contract"></i> Planes de Apoyo</a>
-            </li>
-          </ul>
-        </div>
-        <div className="sidebar-item">
-          <a href="#" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
-            <i className="fa-solid fa-arrow-right-from-bracket"></i> Salir
-          </a>
-        </div>
-      </aside>
-
-      {/* Main Workspace */}
-      <main className="main-content">
-        <header className="panel-header">
+    <>
+      {/* Main Workspace (Sidebar is now handled by SidebarLayout) */}
+      <header className="panel-header">
           <div>
             <h1 style={{ fontSize: '1.8rem', fontWeight: 700 }}>{session.institution}</h1>
             <p style={{ color: 'var(--text-muted)' }}>Alertas Predictivas de Deserción y Seguimiento Académico B2B.</p>
@@ -197,7 +171,6 @@ export default function Dashboard() {
             </table>
           </div>
         </div>
-      </main>
-    </div>
+    </>
   );
 }
