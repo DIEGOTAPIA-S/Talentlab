@@ -4,8 +4,12 @@ import Dashboard from './pages/Dashboard'
 import Simulador from './pages/Simulador'
 
 import SidebarLayout from './components/SidebarLayout'
+import StudentLayout from './components/StudentLayout'
 import Alumnos from './pages/Alumnos'
 import Planes from './pages/Planes'
+import Egresados from './pages/Egresados'
+import Mentorias from './pages/Mentorias'
+import ReporteEstudiante from './pages/ReporteEstudiante'
 import Egresados from './pages/Egresados'
 
 function App() {
@@ -23,7 +27,12 @@ function App() {
           <Route path="/egresados" element={<Egresados />} />
         </Route>
 
-        <Route path="/simulador" element={<Simulador />} />
+        {/* Protected Student Routes */}
+        <Route element={<StudentLayout />}>
+          <Route path="/simulador" element={<Simulador />} />
+          <Route path="/mentorias" element={<Mentorias />} />
+          <Route path="/mi-reporte" element={<ReporteEstudiante />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   )

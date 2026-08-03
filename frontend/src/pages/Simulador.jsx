@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 export default function Simulador() {
   const navigate = useNavigate();
@@ -11,6 +11,7 @@ export default function Simulador() {
   const [isRecording, setIsRecording] = useState(false);
   const [score, setScore] = useState('--');
   const [feedbacks, setFeedbacks] = useState([]);
+  const [showGuide, setShowGuide] = useState(true);
   
   const chatDisplayRef = useRef(null);
 
@@ -29,10 +30,6 @@ export default function Simulador() {
     }
   }, [messages]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('user_session');
-    navigate('/login');
-  };
 
   const handleSendMessage = async () => {
     const text = inputValue.trim();
@@ -92,34 +89,9 @@ export default function Simulador() {
   if (!session) return null;
 
   return (
-    <div className="dashboard-container">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div>
-          <Link to="/simulador" className="sidebar-brand">
-            <i className="fa-solid fa-flask-bubble"></i> Talent<span>Lab</span>
-          </Link>
-          <ul className="sidebar-menu">
-            <li className="sidebar-item active">
-              <Link to="/simulador"><i className="fa-solid fa-microphone-lines"></i> Simulador IA</Link>
-            </li>
-            <li className="sidebar-item">
-              <a href="#"><i className="fa-solid fa-graduation-cap"></i> Mis Mentorías</a>
-            </li>
-            <li className="sidebar-item">
-              <a href="#"><i className="fa-solid fa-file-invoice"></i> Mi Reporte</a>
-            </li>
-          </ul>
-        </div>
-        <div className="sidebar-item">
-          <a href="#" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
-            <i className="fa-solid fa-arrow-right-from-bracket"></i> Salir
-          </a>
-        </div>
-      </aside>
-
+    <>
       {/* Main Content */}
-      <main className="main-panel">
+      <div style={{ padding: '30px' }}>
         <header className="panel-header">
           <div>
             <h1 style={{ fontSize: '1.8rem', fontWeight: 700 }}>Entrenamiento de Entrevistas</h1>
@@ -199,7 +171,33 @@ export default function Simulador() {
           </div>
 
         </div>
-      </main>
-    </div>
+      </div>
+
+      {/* Modal Guía Rápida */}
+      {showGuide && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', 
+          backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', 
+          justifyContent: 'center', alignItems: 'center'
+        }}>
+          <div className="card" style={{ width: '500px', maxWidth: '90%', position: 'relative' }}>
+            <h2 style={{ marginBottom: '15px', color: 'var(--primary)' }}>
+              <i className="fa-solid fa-rocket"></i> Guía Rápida del Simulador
+            </h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '15px' }}>
+              Bienvenido al Simulador de Entrevistas. Aquí podrás practicar respuestas a preguntas comunes del sector productivo.
+            </p>
+            <ul style={{ color: 'var(--text-muted)', marginBottom: '20px', paddingLeft: '20px', lineHeight: '1.6' }}>
+              <li><strong>🎤 Modo Voz:</strong> Haz clic en el micrófono para simular que hablas.</li>
+              <li><strong>⌨️ Modo Texto:</strong> Escribe tu respuesta y presiona Enviar.</li>
+              <li><strong>📈 Calificación en Vivo:</strong> La IA analizará tu respuesta y te dará un puntaje de coherencia y comunicación.</li>
+            </ul>
+            <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setShowGuide(false)}>
+              ¡Entendido, empezar entrevista!
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
