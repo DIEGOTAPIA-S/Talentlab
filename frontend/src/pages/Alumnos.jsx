@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
 
 export default function Alumnos() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAlumno, setSelectedAlumno] = useState(null);
   
   // Datos simulados por ahora, en producción vendrán del backend
   const alumnosData = [
-    { id: 1, name: 'Diego Tapia', program: 'Tecnólogo en ADSO', email: 'estudiante@talentlab.edu', status: 'Activo' },
-    { id: 2, name: 'Camila Restrepo', program: 'Diseño Gráfico Digital', email: 'crestrepo@talentlab.edu', status: 'Activo' },
-    { id: 3, name: 'Mateo Bermúdez', program: 'Diseño Gráfico Digital', email: 'mbermudez@talentlab.edu', status: 'Riesgo' },
-    { id: 4, name: 'Juan Pérez García', program: 'Tecnólogo en ADSO', email: 'jperez@talentlab.edu', status: 'Inactivo' },
+    { id: 1, name: 'Diego Tapia', program: 'Tecnólogo en ADSO', email: 'estudiante@talentlab.edu', status: 'Activo', risk: 'ALTO (85%)', factor: 'Económico (Transporte)' },
+    { id: 2, name: 'Camila Restrepo', program: 'Diseño Gráfico Digital', email: 'crestrepo@talentlab.edu', status: 'Activo', risk: 'BAJO (20%)', factor: 'Estable' },
+    { id: 3, name: 'Mateo Bermúdez', program: 'Diseño Gráfico Digital', email: 'mbermudez@talentlab.edu', status: 'Riesgo', risk: 'MEDIO (68%)', factor: 'Personal (Desmotivación)' },
+    { id: 4, name: 'Juan Pérez García', program: 'Tecnólogo en ADSO', email: 'jperez@talentlab.edu', status: 'Inactivo', risk: 'ALTO (42%)', factor: 'Económico (Matrícula)' },
   ];
 
   const filteredAlumnos = alumnosData.filter(a => 
@@ -70,7 +70,7 @@ export default function Alumnos() {
                     </span>
                   </td>
                   <td>
-                    <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => alert(`Abriendo perfil detallado e historial de ${al.name}`)}>
+                    <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => setSelectedAlumno(al)}>
                       Ver Perfil
                     </button>
                   </td>
@@ -85,6 +85,49 @@ export default function Alumnos() {
           </table>
         </div>
       </div>
+
+      {/* Modal Ver Perfil */}
+      {selectedAlumno && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', 
+          backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', 
+          justifyContent: 'center', alignItems: 'center'
+        }}>
+          <div className="card" style={{ width: '500px', maxWidth: '90%', position: 'relative' }}>
+            <button 
+              onClick={() => setSelectedAlumno(null)}
+              style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.5rem', cursor: 'pointer' }}
+            >&times;</button>
+            
+            <h2 style={{ marginBottom: '5px' }}>{selectedAlumno.name}</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{selectedAlumno.email} | {selectedAlumno.program}</p>
+            
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+              <h4 style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '5px' }}>Nivel de Riesgo (ML)</h4>
+              <p style={{ fontSize: '1.2rem', fontWeight: 'bold', color: selectedAlumno.risk.includes('ALTO') ? 'var(--color-danger)' : 'var(--color-warning)' }}>
+                <i className="fa-solid fa-triangle-exclamation"></i> {selectedAlumno.risk}
+              </p>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Factor: {selectedAlumno.factor}</p>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+              <h4 style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '5px' }}>Última Simulación IA</h4>
+              <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>Puntaje: 78/100</p>
+              <ul style={{ fontSize: '0.85rem', color: 'var(--text-muted)', paddingLeft: '20px', marginTop: '5px' }}>
+                <li>Buena presentación inicial de perfil.</li>
+                <li>Podría detallar más sus habilidades técnicas.</li>
+              </ul>
+            </div>
+
+            <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => {
+              alert("Plan de apoyo creado y notificado al estudiante.");
+              setSelectedAlumno(null);
+            }}>
+              Asignar Plan de Apoyo
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
