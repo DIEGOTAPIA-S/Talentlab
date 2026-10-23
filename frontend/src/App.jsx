@@ -10,7 +10,13 @@ import Planes from './pages/Planes'
 import Egresados from './pages/Egresados'
 import Mentorias from './pages/Mentorias'
 import ReporteEstudiante from './pages/ReporteEstudiante'
-import Egresados from './pages/Egresados'
+import Perfil from './pages/Perfil'
+import Consolidado from './pages/Consolidado'
+
+function ProfileLayout() {
+  const session = JSON.parse(localStorage.getItem('user_session') || '{}')
+  return session.role === 'student' ? <StudentLayout /> : <SidebarLayout />
+}
 
 function App() {
   return (
@@ -25,6 +31,12 @@ function App() {
           <Route path="/alumnos" element={<Alumnos />} />
           <Route path="/planes" element={<Planes />} />
           <Route path="/egresados" element={<Egresados />} />
+          <Route path="/consolidado" element={<Consolidado />} />
+        </Route>
+
+        {/* Perfil: el layout depende del rol */}
+        <Route element={<ProfileLayout />}>
+          <Route path="/perfil" element={<Perfil />} />
         </Route>
 
         {/* Protected Student Routes */}

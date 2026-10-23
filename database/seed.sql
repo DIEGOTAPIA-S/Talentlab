@@ -6,7 +6,7 @@ ON CONFLICT DO NOTHING;
 -- 2. Insertar Usuarios
 INSERT INTO users (id, tenant_id, email, role, nombre_completo) 
 VALUES 
-('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'director@talentlab.edu', 'admin_tenant', 'Dra. Patricia Gómez'),
+('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'director@talentlab.edu', 'admin_tenant', 'Patricia Gómez Salazar'),
 ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'estudiante@talentlab.edu', 'student', 'Diego Tapia');
 
 -- 3. Insertar Perfiles de Riesgo de Estudiantes (Para probar el dashboard)

@@ -48,9 +48,21 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: var(--font-family);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+body, button, input, select, textarea {
+    font-family: var(--font-family);
+}
+
+/* Reglas explícitas para iconos FontAwesome */
+i, [class*="fa-"], [class^="fa-"], .fa, .fa-solid, .fa-regular, .fa-brands {
+    font-family: "Font Awesome 6 Free", "FontAwesome" !important;
+}
+
+i::before, [class*="fa-"]::before, [class^="fa-"]::before, .fa::before, .fa-solid::before, .fa-regular::before, .fa-brands::before {
+    font-family: "Font Awesome 6 Free", "FontAwesome" !important;
 }
 
 body {
