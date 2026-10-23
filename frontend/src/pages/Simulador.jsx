@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import InterviewerAvatar, { INTERVIEWER_PERSONAS } from '../components/InterviewerAvatar';
+import InterviewerAvatar from '../components/InterviewerAvatar';
 import { BodyAndVoiceAnalyzer } from '../lib/bodyAnalysis';
+import { VOCATIONAL_TRACKS, INTERVIEWER_PERSONAS } from '../lib/interviewerConstants';
 
 const API = 'http://localhost:8000';
 const BARS = 56;
@@ -16,49 +17,6 @@ const AXES = [
 ];
 
 const Q_TITLE = 'P: ';
-
-export const VOCATIONAL_TRACKS = [
-  {
-    id: 'transversal',
-    name: 'Transversal (Todas las Carreras)',
-    shortName: 'Transversal (Todas)',
-    icon: 'fa-globe',
-    badgeColor: '#a855f7',
-    recommendedPersona: 'carolina',
-    initialQuestion: '¡Bienvenido/a a tu simulación de entrevista! Cuéntanos sobre una situación desafiante que hayas superado durante tu formación académica o en un proyecto, y cómo lograste resolverla.',
-    roleTarget: 'Competencias Laborales Transversales'
-  },
-  {
-    id: 'gestion',
-    name: 'Gestión Empresarial & Finanzas',
-    shortName: 'Gestión & Finanzas',
-    icon: 'fa-briefcase',
-    badgeColor: '#10b981',
-    recommendedPersona: 'david',
-    initialQuestion: '¡Bienvenido/a! Describe una situación donde hayas tenido que coordinar recursos, atender a un usuario o cliente exigente, o cumplir una meta administrativa.',
-    roleTarget: 'Prácticas en Gestión Empresarial, Finanzas o Servicios'
-  },
-  {
-    id: 'tecnologia',
-    name: 'Tecnología, Procesos & TIC',
-    shortName: 'TIC & Software',
-    icon: 'fa-laptop-code',
-    badgeColor: '#06b6d4',
-    recommendedPersona: 'carlos',
-    initialQuestion: '¡Bienvenido/a! Describe un proyecto o reto técnico donde hayas tenido que investigar una solución, resolver un problema complejo o implementar una mejora de procesos.',
-    roleTarget: 'Prácticas en Análisis y Desarrollo de Software (ADSO) / TIC'
-  },
-  {
-    id: 'diseno',
-    name: 'Diseño, Multimedia & Comunicación',
-    shortName: 'Diseño & Medios',
-    icon: 'fa-palette',
-    badgeColor: '#f59e0b',
-    recommendedPersona: 'carolina',
-    initialQuestion: '¡Bienvenido/a! Cuéntanos sobre un proyecto donde debiste interpretar las necesidades de una audiencia o cliente para estructurar una propuesta visual creativa.',
-    roleTarget: 'Prácticas en Diseño Gráfico Digital / Medios'
-  }
-];
 
 export default function Simulador() {
   const navigate = useNavigate();

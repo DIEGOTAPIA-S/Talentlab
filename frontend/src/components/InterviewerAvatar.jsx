@@ -1,52 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { INTERVIEWER_PERSONAS } from '../lib/interviewerConstants';
 
-export const INTERVIEWER_PERSONAS = [
-  {
-    id: 'carolina',
-    name: 'Dra. Carolina Ortiz',
-    role: 'Psicóloga Organizacional & Selección',
-    company: 'Agencia Pública de Empleo (APE)',
-    track: 'transversal',
-    trackLabel: 'Transversal (Todas las Carreras)',
-    description: 'Evaluadora de competencias laborales universales: comunicación asertiva, resolución de conflictos, inteligencia emocional y método STAR.',
-    gender: 'female',
-    image: '/avatars/carolina.jpg',
-    badgeColor: '#a855f7',
-    accentColor: 'rgba(168, 85, 247, 0.25)',
-    voicePitch: 1.15,
-    voiceRate: 1.0
-  },
-  {
-    id: 'david',
-    name: 'David Morales',
-    role: 'Coordinador de Prácticas & Gestión',
-    company: 'Sector Administrativo y Servicios',
-    track: 'gestion',
-    trackLabel: 'Gestión Empresarial & Finanzas',
-    description: 'Evaluación en organización de procesos, atención a usuarios/clientes, gestión de presupuestos, metas comerciales y proyectos empresariales.',
-    gender: 'male',
-    image: '/avatars/david.jpg',
-    badgeColor: '#10b981',
-    accentColor: 'rgba(16, 185, 129, 0.25)',
-    voicePitch: 0.9,
-    voiceRate: 0.95
-  },
-  {
-    id: 'carlos',
-    name: 'Carlos Mendoza',
-    role: 'Instructor Líder TIC & Procesos',
-    company: 'Centro de Tecnologías e Innovación',
-    track: 'tecnologia',
-    trackLabel: 'Tecnología, Procesos & TIC',
-    description: 'Evaluación de proyectos formativos aplicados, lógica de procesos, herramientas digitales, automatización y solución metódica de problemas.',
-    gender: 'male',
-    image: '/avatars/carlos.jpg',
-    badgeColor: '#06b6d4',
-    accentColor: 'rgba(6, 182, 212, 0.25)',
-    voicePitch: 1.0,
-    voiceRate: 1.05
-  }
-];
+export { INTERVIEWER_PERSONAS };
 
 export default function InterviewerAvatar({ 
   personaId = 'carlos', 
