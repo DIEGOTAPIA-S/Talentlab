@@ -10,23 +10,37 @@ export default function Login() {
 
   const handleRoleChange = (role) => {
     setActiveRole(role);
+    setError(null);
     if (role === 'student') {
       setEmail('estudiante@talentlab.edu');
       setPassword('student123');
-    } else {
+    } else if (role === 'admin_tenant') {
       setEmail('director@talentlab.edu');
       setPassword('director123');
+    } else if (role === 'super_admin') {
+      setEmail('admin@talentlab.edu');
+      setPassword('admin123');
     }
   };
 
   const handleQuickLogin = (role) => {
-    const defaultEmail = role === 'student' ? 'estudiante@talentlab.edu' : 'director@talentlab.edu';
-    const defaultPass = role === 'student' ? 'student123' : 'director123';
+    const defaultEmail =
+      role === 'student'
+        ? 'estudiante@talentlab.edu'
+        : role === 'super_admin'
+        ? 'admin@talentlab.edu'
+        : 'director@talentlab.edu';
+    const defaultPass =
+      role === 'student'
+        ? 'student123'
+        : role === 'super_admin'
+        ? 'admin123'
+        : 'director123';
+
     setActiveRole(role);
     setEmail(defaultEmail);
     setPassword(defaultPass);
 
-    // Ejecuta el login directamente
     executeLogin(defaultEmail, defaultPass, role);
   };
 
@@ -50,7 +64,9 @@ export default function Login() {
 
       if (sessionData.role === 'student') {
         navigate('/simulador');
-      } else if (sessionData.role === 'admin_tenant') {
+      } else if (sessionData.role === 'super_admin') {
+        navigate('/admin/usuarios');
+      } else {
         navigate('/dashboard');
       }
     } catch (err) {
@@ -69,30 +85,41 @@ export default function Login() {
       <div className="login-visuals">
         <div className="login-branding">
           <h1><i className="fa-solid fa-flask-bubble"></i> Talent<span>Lab</span></h1>
-          <p>Potenciando la retención estudiantil y la orientación con IA.</p>
+          <p>Plataforma Inteligente de Retención Estudiantil y Simulación de Entrevistas con IA.</p>
         </div>
       </div>
       
       <div className="login-container">
         <div className="login-header">
-          <h2>Bienvenido de Nuevo</h2>
-          <p>Selecciona tu perfil para ingresar a la plataforma</p>
+          <h2>Acceso al Ecosistema</h2>
+          <p>Selecciona tu perfil para ingresar</p>
         </div>
 
-        <div className="role-selector">
+        {/* Selector limpio de los 3 Roles */}
+        <div className="role-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
           <div 
             className={`role-option ${activeRole === 'student' ? 'active' : ''}`}
             onClick={() => handleRoleChange('student')}
+            style={{ padding: '12px 8px' }}
           >
             <i className="fa-solid fa-user-graduate"></i>
-            <span>Estudiante</span>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Estudiante</span>
           </div>
           <div 
             className={`role-option ${activeRole === 'admin_tenant' ? 'active' : ''}`}
             onClick={() => handleRoleChange('admin_tenant')}
+            style={{ padding: '12px 8px' }}
           >
             <i className="fa-solid fa-building-columns"></i>
-            <span>Directivo</span>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Directivo</span>
+          </div>
+          <div 
+            className={`role-option ${activeRole === 'super_admin' ? 'active' : ''}`}
+            onClick={() => handleRoleChange('super_admin')}
+            style={{ padding: '12px 8px' }}
+          >
+            <i className="fa-solid fa-user-shield"></i>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Administrador</span>
           </div>
         </div>
 
@@ -127,30 +154,38 @@ export default function Login() {
             />
           </div>
           <button type="submit" className="btn btn-primary btn-block">
-            Ingresar al Sistema <i className="fa-solid fa-arrow-right-to-bracket"></i>
+            Iniciar Sesión <i className="fa-solid fa-arrow-right-to-bracket"></i>
           </button>
         </form>
 
         <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: '10px' }}>
-            Acceso Rápido para Demostración SENA:
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: '10px' }}>
+            Acceso Rápido de Demostración:
           </p>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
             <button 
               type="button" 
               className="btn btn-secondary" 
-              style={{ flex: 1, fontSize: '0.78rem', padding: '8px 5px' }}
+              style={{ fontSize: '0.74rem', padding: '8px 6px' }}
               onClick={() => handleQuickLogin('student')}
             >
-              🎓 Como Estudiante
+              🎓 Estudiante
             </button>
             <button 
               type="button" 
               className="btn btn-secondary" 
-              style={{ flex: 1, fontSize: '0.78rem', padding: '8px 5px' }}
+              style={{ fontSize: '0.74rem', padding: '8px 6px' }}
               onClick={() => handleQuickLogin('admin_tenant')}
             >
-              🏛️ Como Directivo
+              🏛️ Directivo
+            </button>
+            <button 
+              type="button" 
+              className="btn btn-secondary" 
+              style={{ fontSize: '0.74rem', padding: '8px 6px' }}
+              onClick={() => handleQuickLogin('super_admin')}
+            >
+              🛡️ Admin
             </button>
           </div>
         </div>

@@ -41,13 +41,17 @@ export default function Consolidado() {
 
   useEffect(() => {
     const s = JSON.parse(localStorage.getItem('user_session') || 'null');
-    if (!s || s.role !== 'admin_tenant') { navigate('/login'); return; }
+    if (!s || (s.role !== 'admin_tenant' && s.role !== 'super_admin')) { navigate('/login'); return; }
     setSession(s);
+    if (s.role === 'admin_tenant' && s.institution) {
+      setInstitution(s.institution);
+    }
   }, [navigate]);
 
   const load = useCallback(async () => {
     try {
-      const qs = new URLSearchParams({ institution, program }).toString();
+      const effectiveInst = session?.role === 'admin_tenant' ? session.institution : institution;
+      const qs = new URLSearchParams({ institution: effectiveInst, program }).toString();
       const res = await fetch(`${API}/api/dashboard/consolidated?${qs}`);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       setData(await res.json());
@@ -55,7 +59,7 @@ export default function Consolidado() {
     } catch (e) {
       setError('No se pudo conectar con el backend (puerto 8000). Inícialo con iniciar_talentlab.bat.');
     }
-  }, [institution, program]);
+  }, [institution, program, session]);
 
   useEffect(() => { if (session) load(); }, [session, load]);
 
@@ -97,9 +101,16 @@ export default function Consolidado() {
       {/* Filtros */}
       <div className="card" style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'end', marginBottom: '22px' }}>
         <div style={{ flex: 1, minWidth: '240px' }}>
-          <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Institución</label>
-          <select className="form-control" value={institution} onChange={e => setInstitution(e.target.value)}>
-            <option value="todas">Todas las instituciones</option>
+          <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+            {session.role === 'super_admin' ? 'Institución (Gobierno Global)' : 'Mi Institución (Aislada)'}
+          </label>
+          <select
+            className="form-control"
+            value={session.role === 'admin_tenant' ? session.institution : institution}
+            disabled={session.role === 'admin_tenant'}
+            onChange={e => setInstitution(e.target.value)}
+          >
+            {session.role === 'super_admin' && <option value="todas">Todas las instituciones</option>}
             {data?.filters.institutions.map(i => <option key={i} value={i}>{i}</option>)}
           </select>
         </div>
@@ -110,7 +121,7 @@ export default function Consolidado() {
             {data?.filters.programs.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
-        <button className="btn btn-secondary" onClick={() => { setInstitution('todas'); setProgram('todos'); }}>
+        <button className="btn btn-secondary" onClick={() => { if (session.role === 'super_admin') setInstitution('todas'); setProgram('todos'); }}>
           <i className="fa-solid fa-rotate-left"></i> Limpiar
         </button>
       </div>

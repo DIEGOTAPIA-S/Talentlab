@@ -12,6 +12,7 @@ import Mentorias from './pages/Mentorias'
 import ReporteEstudiante from './pages/ReporteEstudiante'
 import Perfil from './pages/Perfil'
 import Consolidado from './pages/Consolidado'
+import AdminUsuarios from './pages/AdminUsuarios'
 
 function ProfileLayout() {
   const session = JSON.parse(localStorage.getItem('user_session') || '{}')
@@ -25,8 +26,9 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         
-        {/* Protected Admin Routes */}
+        {/* Protected Admin & Directivo Routes */}
         <Route element={<SidebarLayout />}>
+          <Route path="/admin/usuarios" element={<AdminUsuarios />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/alumnos" element={<Alumnos />} />
           <Route path="/planes" element={<Planes />} />

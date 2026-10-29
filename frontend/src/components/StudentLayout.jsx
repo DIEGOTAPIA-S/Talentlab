@@ -8,6 +8,7 @@ export default function StudentLayout() {
   const session = JSON.parse(localStorage.getItem('user_session') || '{}');
   const rawName = session.role === 'student' ? (session.fullName || 'Diego Tapia') : 'Diego Tapia';
   const studentName = rawName.replace(/^Dra\.\s*/i, '');
+  const institution = session.institution || 'SENA Centro de Tecnologías';
 
   const handleLogout = (e) => {
     e.preventDefault();
@@ -34,11 +35,14 @@ export default function StudentLayout() {
                 <i className="fa-solid fa-user-graduate"></i> Perfil Activo
               </span>
               <strong style={{ fontSize: '0.88rem', display: 'block', color: 'var(--text-main)', marginTop: '2px' }}>
-                APRENDIZ SENA
+                ESTUDIANTE / APRENDIZ
               </strong>
-              <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', display: 'block' }}>
                 {studentName}
               </span>
+              <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '0.7rem', color: '#67e8f9' }}>
+                <i className="fa-solid fa-building-columns"></i> {institution}
+              </div>
             </div>
           </div>
 
@@ -46,11 +50,11 @@ export default function StudentLayout() {
             <li className={`sidebar-item ${location.pathname === '/simulador' ? 'active' : ''}`}>
               <Link to="/simulador"><i className="fa-solid fa-microphone-lines"></i> Simulador IA</Link>
             </li>
+            <li className={`sidebar-item ${location.pathname === '/mi-reporte' ? 'active' : ''}`}>
+              <Link to="/mi-reporte"><i className="fa-solid fa-clipboard-check"></i> Mi Reporte y Planes</Link>
+            </li>
             <li className={`sidebar-item ${location.pathname === '/mentorias' ? 'active' : ''}`}>
               <Link to="/mentorias"><i className="fa-solid fa-graduation-cap"></i> Mis Mentorías (IA)</Link>
-            </li>
-            <li className={`sidebar-item ${location.pathname === '/mi-reporte' ? 'active' : ''}`}>
-              <Link to="/mi-reporte"><i className="fa-solid fa-file-invoice"></i> Mi Reporte</Link>
             </li>
             <li className={`sidebar-item ${location.pathname === '/perfil' ? 'active' : ''}`}>
               <Link to="/perfil"><i className="fa-solid fa-user-gear"></i> Mi Perfil</Link>
@@ -59,18 +63,6 @@ export default function StudentLayout() {
         </div>
 
         <div>
-          {/* Indicador de Estado de Base de Datos */}
-          <div style={{ 
-            padding: '10px 14px', margin: '0 15px 12px 15px', 
-            background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', 
-            borderRadius: '6px', fontSize: '0.72rem', color: 'var(--text-muted)' 
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-success)', fontWeight: 600, marginBottom: '2px' }}>
-              <i className="fa-solid fa-database"></i> Base de Datos Activa
-            </div>
-            <span>SQLite Local / PostgreSQL Ready</span>
-          </div>
-
           <div className="sidebar-item">
             <a href="#" onClick={handleLogout} style={{ color: 'var(--color-danger)' }}>
               <i className="fa-solid fa-arrow-right-from-bracket"></i> Salir

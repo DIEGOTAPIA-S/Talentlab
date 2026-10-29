@@ -24,12 +24,18 @@ export default function Alumnos() {
   });
 
   const [notification, setNotification] = useState(null);
+  const session = JSON.parse(localStorage.getItem('user_session') || '{}');
+  const isSuperAdmin = session.role === 'super_admin';
+  const myInstitution = session.institution || 'SENA - Centro de Tecnologías del Software';
 
-  // Cargar estudiantes desde la API
+  // Cargar estudiantes desde la API (aislados por institución si es Directivo)
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:8000/api/students');
+      const instQuery = !isSuperAdmin && myInstitution
+        ? `?institution=${encodeURIComponent(myInstitution)}`
+        : '';
+      const res = await fetch(`http://localhost:8000/api/students${instQuery}`);
       if (res.ok) {
         const data = await res.json();
         setStudents(data.students || []);
@@ -43,7 +49,7 @@ export default function Alumnos() {
 
   useEffect(() => {
     fetchStudents();
-  }, []);
+  }, [myInstitution, isSuperAdmin]);
 
   const showToast = (msg, type = 'success') => {
     setNotification({ msg, type });
@@ -54,13 +60,17 @@ export default function Alumnos() {
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...formData,
+        institution: !isSuperAdmin ? myInstitution : (formData.institution || myInstitution)
+      };
       const res = await fetch('http://localhost:8000/api/students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
-        showToast('Estudiante registrado exitosamente en el sistema.');
+        showToast(`Estudiante registrado exitosamente en ${payload.institution}.`);
         setShowCreateModal(false);
         setFormData({
           name: '',
@@ -177,12 +187,27 @@ export default function Alumnos() {
     <>
       <header className="panel-header">
         <div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 700 }}>Gestión de Matrícula y Alumnos</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Módulo Administrativo B2B: Altas, bajas, actualización y seguimiento del riesgo.</p>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px',
+            borderRadius: '999px', background: isSuperAdmin ? 'rgba(245, 158, 11, 0.16)' : 'rgba(168, 85, 247, 0.16)',
+            border: isSuperAdmin ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(168, 85, 247, 0.4)',
+            color: isSuperAdmin ? '#fbbf24' : '#d8b4fe', fontSize: '0.74rem', fontWeight: 700, marginBottom: '6px'
+          }}>
+            <i className={`fa-solid ${isSuperAdmin ? 'fa-crown' : 'fa-building-columns'}`}></i>
+            {isSuperAdmin ? 'ALCANCE GLOBAL MULTI-INSTITUCIÓN' : `INSTITUCIÓN ACTIVA: ${myInstitution.toUpperCase()}`}
+          </div>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 700 }}>
+            {isSuperAdmin ? 'Directorio Global de Estudiantes' : 'Estudiantes de mi Institución'}
+          </h1>
+          <p style={{ color: 'var(--text-muted)' }}>
+            {isSuperAdmin
+              ? 'Supervisión total de matrículas en todas las instituciones registradas.'
+              : `Gestión y monitoreo de los estudiantes pertenecientes exclusivamente a ${myInstitution}.`}
+          </p>
         </div>
         <div>
           <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            <i className="fa-solid fa-user-plus"></i> Nuevo Estudiante
+            <i className="fa-solid fa-user-plus"></i> Matricular Estudiante en Sede
           </button>
         </div>
       </header>

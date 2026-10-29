@@ -2,26 +2,27 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const DEFAULT_STUDENTS = [
-  { name: 'Juan Pérez García', program: 'Tecnólogo en ADSO', risk: 'alto', factor: 'Económico (Transporte/Matrícula)', score: '42%' },
-  { name: 'Camila Restrepo', program: 'Tecnólogo en ADSO', risk: 'alto', factor: 'Tiempo (Estudio y Trabajo)', score: '39%' },
-  { name: 'Diego Tapia', program: 'Tecnólogo en ADSO', risk: 'medio', factor: 'Académico (Rendimiento Lógica)', score: '62%' },
-  { name: 'Mateo Bermúdez', program: 'Diseño Gráfico Digital', risk: 'medio', factor: 'Personal (Desmotivación Vocacional)', score: '68%' },
-  { name: 'Daniela Rojas', program: 'Tecnólogo en ADSO', risk: 'bajo', factor: 'Desempeño Estable', score: '89%' },
-  { name: 'Estefanía Herrera', program: 'Desarrollo de Software', risk: 'bajo', factor: 'Desempeño Estable', score: '93%' }
+  { id: 1, name: 'Juan Pérez García', program: 'Tecnólogo en ADSO', risk: 'alto', factor: 'Económico (Transporte/Matrícula)', score: '82%' },
+  { id: 2, name: 'Camila Restrepo', program: 'Tecnólogo en ADSO', risk: 'alto', factor: 'Tiempo (Estudio y Trabajo)', score: '78%' },
+  { id: 3, name: 'Diego Tapia', program: 'Tecnólogo en ADSO', risk: 'medio', factor: 'Académico (Rendimiento Lógica)', score: '55%' },
+  { id: 4, name: 'Mateo Bermúdez', program: 'Diseño Gráfico Digital', risk: 'medio', factor: 'Personal (Desmotivación Vocacional)', score: '48%' },
+  { id: 5, name: 'Daniela Rojas', program: 'Tecnólogo en ADSO', risk: 'bajo', factor: 'Desempeño Estable', score: '18%' },
+  { id: 6, name: 'Estefanía Herrera', program: 'Desarrollo de Software', risk: 'bajo', factor: 'Desempeño Estable', score: '12%' }
 ];
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
   const [students, setStudents] = useState(DEFAULT_STUDENTS);
-  const [totalEvaluated, setTotalEvaluated] = useState(96);
-  const [kpiHigh, setKpiHigh] = useState(26);
+  const [totalEvaluated, setTotalEvaluated] = useState(6);
+  const [kpiHigh, setKpiHigh] = useState(2);
   const [retentionRate, setRetentionRate] = useState('94%');
+  const [activePlansCount, setActivePlansCount] = useState(4);
   const [filterRisk, setFilterRisk] = useState('todos');
 
   useEffect(() => {
     const sessionData = JSON.parse(localStorage.getItem('user_session'));
-    if (!sessionData || sessionData.role !== 'admin_tenant') {
+    if (!sessionData || (sessionData.role !== 'admin_tenant' && sessionData.role !== 'super_admin')) {
       navigate('/login');
       return;
     }
@@ -29,15 +30,19 @@ export default function Dashboard() {
 
     const loadDashboardData = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/dashboard/risk-semaphore');
+        const instParam = sessionData.role === 'admin_tenant' && sessionData.institution
+          ? `?institution=${encodeURIComponent(sessionData.institution)}`
+          : '';
+        const response = await fetch(`http://localhost:8000/api/dashboard/risk-semaphore${instParam}`);
         if (response.ok) {
           const data = await response.json();
-          if (data.students && data.students.length > 0) {
+          if (data.students) {
             setStudents(data.students);
           }
-          if (data.totalEvaluated) setTotalEvaluated(data.totalEvaluated);
+          if (data.totalEvaluated !== undefined) setTotalEvaluated(data.totalEvaluated);
           if (data.highRiskCount !== undefined) setKpiHigh(data.highRiskCount);
           if (data.retentionRate) setRetentionRate(data.retentionRate);
+          if (data.activePlansCount !== undefined) setActivePlansCount(data.activePlansCount);
         }
       } catch (error) {
         console.warn('Backend local no detectado, operando con datos locales de contingencia:', error);
@@ -47,14 +52,8 @@ export default function Dashboard() {
     loadDashboardData();
   }, [navigate]);
 
-  const triggerAction = (name, risk) => {
-    if (risk === 'alto') {
-      alert(`[ALERTA DE RETENCIÓN TALENTLAB]\nSe ha activado el protocolo prioritario para ${name}.\nAcción: Notificación enviada al orientador y citación para plan de apoyo.`);
-    } else if (risk === 'medio') {
-      alert(`[SEGUIMIENTO PREVENTIVO TALENTLAB]\nSe asignó tutoría académica y refuerzo vocacional para ${name}.`);
-    } else {
-      alert(`[REPORTE GENERAL]\nEl estudiante ${name} mantiene indicadores de permanencia y desempeño satisfactorios.`);
-    }
+  const handleAssignImprovementPlan = (student) => {
+    navigate(`/planes?studentId=${student.id || ''}&studentName=${encodeURIComponent(student.name)}`);
   };
 
   const filteredStudents = filterRisk === 'todos' 
@@ -67,8 +66,17 @@ export default function Dashboard() {
     <>
       <header className="panel-header">
         <div>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px',
+            borderRadius: '999px', background: 'rgba(168, 85, 247, 0.16)', border: '1px solid rgba(168, 85, 247, 0.4)',
+            color: '#d8b4fe', fontSize: '0.75rem', fontWeight: 700, marginBottom: '8px'
+          }}>
+            <i className="fa-solid fa-building-columns"></i> VISTA EXCLUSIVA DE INSTITUCIÓN · {session.role === 'super_admin' ? 'MODO SUPERVISIÓN' : 'PERFIL DIRECTIVO / COORDINADOR'}
+          </div>
           <h1 style={{ fontSize: '1.8rem', fontWeight: 700 }}>{session.institution}</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Semáforo Predictivo de Retención Estudiantil y Analítica B2B.</p>
+          <p style={{ color: 'var(--text-muted)' }}>
+            Monitoreo focalizado de estudiantes matriculados en tu institución, alertas tempranas y Planes de Mejoramiento.
+          </p>
         </div>
         <div className="user-info" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div className="avatar" style={{ 
@@ -86,14 +94,14 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Tarjetas de Indicadores Clave (KPIs) */}
+      {/* Tarjetas de Indicadores Clave (KPIs de la Institución) */}
       <div className="kpi-grid">
         <div className="card kpi-card">
           <div>
-            <span className="kpi-label">Matrícula Evaluada</span>
+            <span className="kpi-label">Estudiantes de mi Sede</span>
             <div className="kpi-value">{totalEvaluated}</div>
             <span style={{ fontSize: '0.75rem', color: 'var(--color-success)' }}>
-              <i className="fa-solid fa-caret-up"></i> 100% Cuestionarios Completos
+              <i className="fa-solid fa-caret-up"></i> Monitoreo Activo en Sede
             </span>
           </div>
           <i className="fa-solid fa-users-viewfinder kpi-icon"></i>
@@ -101,10 +109,10 @@ export default function Dashboard() {
         
         <div className="card kpi-card">
           <div>
-            <span className="kpi-label">Riesgo Alto (Semáforo Rojo)</span>
+            <span className="kpi-label">Riesgo Alto en mi Sede</span>
             <div className="kpi-value" style={{ color: 'var(--color-danger)' }}>{kpiHigh}</div>
             <span style={{ fontSize: '0.75rem', color: 'var(--color-danger)' }}>
-              <i className="fa-solid fa-triangle-exclamation"></i> 27.1% Requiere Atención
+              <i className="fa-solid fa-triangle-exclamation"></i> Prioridad de Mejoramiento
             </span>
           </div>
           <i className="fa-solid fa-triangle-exclamation kpi-icon"></i>
@@ -112,13 +120,13 @@ export default function Dashboard() {
 
         <div className="card kpi-card">
           <div>
-            <span className="kpi-label">Entrenamientos IA</span>
-            <div className="kpi-value">64</div>
-            <span style={{ fontSize: '0.75rem', color: 'var(--color-success)' }}>
-              <i className="fa-solid fa-check"></i> Simulaciones Activas
+            <span className="kpi-label">Planes de Mejoramiento</span>
+            <div className="kpi-value" style={{ color: '#38bdf8' }}>{activePlansCount}</div>
+            <span style={{ fontSize: '0.75rem', color: '#38bdf8' }}>
+              <i className="fa-solid fa-clipboard-check"></i> Seguimiento Pedagógico
             </span>
           </div>
-          <i className="fa-solid fa-microphone-lines kpi-icon"></i>
+          <i className="fa-solid fa-clipboard-list kpi-icon"></i>
         </div>
 
         <div className="card kpi-card">
@@ -126,20 +134,20 @@ export default function Dashboard() {
             <span className="kpi-label">Retención Proyectada</span>
             <div className="kpi-value" style={{ color: 'var(--color-success)' }}>{retentionRate}</div>
             <span style={{ fontSize: '0.75rem', color: 'var(--color-success)' }}>
-              <i className="fa-solid fa-circle-check"></i> Meta Cumplida
+              <i className="fa-solid fa-circle-check"></i> Meta Institucional
             </span>
           </div>
           <i className="fa-solid fa-heart-circle-check kpi-icon"></i>
         </div>
       </div>
 
-      {/* Sección del Semáforo de Alertas Tempranas */}
+      {/* Sección del Semáforo de Alertas Tempranas de la Institución */}
       <div className="card" style={{ marginBottom: '32px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <h3 style={{ fontWeight: 600 }}>Semáforo de Alertas Tempranas (Machine Learning)</h3>
+            <h3 style={{ fontWeight: 600 }}>Semáforo de Alertas Tempranas — {session.institution}</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-              Clasificación automática mediante modelo Random Forest para intervención oportuna.
+              Estudiantes pertenecientes únicamente a tu institución. Los cambios realizados por el Administrador Global se reflejan aquí en tiempo real.
             </p>
           </div>
 
@@ -181,33 +189,37 @@ export default function Dashboard() {
             <thead>
               <tr>
                 <th>Nombre del Estudiante</th>
-                <th>Programa Técnico</th>
-                <th>Nivel de Riesgo</th>
+                <th>Programa Formativo</th>
+                <th>Nivel de Riesgo (Prob.)</th>
                 <th>Factor Crítico Predominante</th>
-                <th>Acción Sugerida</th>
+                <th>Puntaje Entrevista IA</th>
+                <th>Acción de Coordinación</th>
               </tr>
             </thead>
             <tbody>
               {filteredStudents.map((student, index) => {
                 let badgeClass = '';
                 let btnClass = 'btn-secondary';
-                let actionText = 'Ver Detalle';
+                let actionText = 'Asignar Plan Mejoramiento';
                 
                 if (student.risk === 'alto') {
                   badgeClass = 'badge-danger';
                   btnClass = 'btn-primary';
-                  actionText = '🚨 Intervención';
+                  actionText = '🚨 Crear Plan Prioritario';
                 } else if (student.risk === 'medio') {
                   badgeClass = 'badge-warning';
-                  actionText = 'Asignar Tutoría';
+                  actionText = '📋 Asignar Plan Preventivo';
                 } else {
                   badgeClass = 'badge-success';
-                  actionText = 'Ver Reporte';
+                  actionText = 'Ver / Asignar Plan';
                 }
 
                 return (
-                  <tr key={index}>
-                    <td style={{ fontWeight: 500 }}>{student.name}</td>
+                  <tr key={student.id || index}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{student.name}</div>
+                      {student.email && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{student.email}</div>}
+                    </td>
                     <td>{student.program}</td>
                     <td><span className={`badge ${badgeClass}`}>{student.risk.toUpperCase()} ({student.score})</span></td>
                     <td style={{ 
@@ -217,10 +229,19 @@ export default function Dashboard() {
                       {student.factor}
                     </td>
                     <td>
+                      {student.interview_score ? (
+                        <span style={{ fontWeight: 700, color: student.interview_score >= 75 ? '#34d399' : '#fbbf24' }}>
+                          {student.interview_score}/100 pts
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>En curso</span>
+                      )}
+                    </td>
+                    <td>
                       <button 
                         className={`btn ${btnClass}`} 
-                        style={{ padding: '6px 14px', fontSize: '0.8rem' }} 
-                        onClick={() => triggerAction(student.name, student.risk)}
+                        style={{ padding: '6px 14px', fontSize: '0.78rem' }} 
+                        onClick={() => handleAssignImprovementPlan(student)}
                       >
                         {actionText}
                       </button>

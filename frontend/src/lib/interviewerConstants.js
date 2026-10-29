@@ -1,93 +1,106 @@
-// Constantes y definiciones de evaluadores y pistas vocacionales
-// Separadas de los componentes React para compatibilidad total con Fast Refresh en Vite
+// Constantes y definiciones de evaluadores y modalidades de entrevista en TalentLab
+// 100% universal: Sin dependencias de agencias públicas ni marcas privadas.
 
-export const VOCATIONAL_TRACKS = [
+// 1. LOS DOS MODOS / FILTROS PRINCIPALES DE ENTREVISTA
+export const INTERVIEW_MODES = [
   {
-    id: 'transversal',
-    name: 'Transversal (Todas las Carreras)',
-    shortName: 'Transversal (Todas)',
-    icon: 'fa-globe',
+    id: 'hr',
+    name: 'Recursos Humanos & Talento',
+    shortName: 'RRHH & Talento',
+    icon: 'fa-user-tie',
     badgeColor: '#a855f7',
-    recommendedPersona: 'carolina',
-    initialQuestion: '¡Bienvenido/a a tu simulación de entrevista! Cuéntanos sobre una situación desafiante que hayas superado durante tu formación académica o en un proyecto, y cómo lograste resolverla.',
-    roleTarget: 'Competencias Laborales Transversales'
+    accentColor: 'rgba(168, 85, 247, 0.25)',
+    interviewerId: 'carolina',
+    tagline: 'Empatía, autoconocimiento, comunicación asertiva y valores humanos',
+    description: 'Conversación reflexiva sobre habilidades socioemocionales, resolución pacífica de conflictos, resiliencia y trabajo en equipo.',
+    initialQuestion: '¡Hola! Qué gusto saludarte. Mi nombre es Carolina Ortiz y seré tu mentora y evaluadora en esta primera etapa de Habilidades Blandas. Más que una prueba rígida, quiero que tengamos una conversación cercana y tranquila para conocerte como persona: tus valores, tu vocación y cómo te relacionas con los demás. Para comenzar, cuéntame: ¿qué te motiva cada día en tu camino formativo y qué experiencia trabajando con otros te ha dejado un aprendizaje valioso que recuerdes con orgullo?',
+    roleTarget: 'Evaluación de Talento Humano y Habilidades Blandas'
   },
   {
-    id: 'gestion',
-    name: 'Gestión Empresarial & Finanzas',
-    shortName: 'Gestión & Finanzas',
-    icon: 'fa-briefcase',
-    badgeColor: '#10b981',
-    recommendedPersona: 'david',
-    initialQuestion: '¡Bienvenido/a! Describe una situación donde hayas tenido que coordinar recursos, atender a un usuario o cliente exigente, o cumplir una meta administrativa.',
-    roleTarget: 'Prácticas en Gestión Empresarial, Finanzas o Servicios'
-  },
-  {
-    id: 'tecnologia',
-    name: 'Tecnología, Procesos & TIC',
-    shortName: 'TIC & Software',
-    icon: 'fa-laptop-code',
+    id: 'technical',
+    name: 'Técnica & Especialidad',
+    shortName: 'Técnica & Especialidad',
+    icon: 'fa-gears',
     badgeColor: '#06b6d4',
-    recommendedPersona: 'carlos',
-    initialQuestion: '¡Bienvenido/a! Describe un proyecto o reto técnico donde hayas tenido que investigar una solución, resolver un problema complejo o implementar una mejora de procesos.',
-    roleTarget: 'Prácticas en Análisis y Desarrollo de Software (ADSO) / TIC'
-  },
-  {
-    id: 'diseno',
-    name: 'Diseño, Multimedia & Comunicación',
-    shortName: 'Diseño & Medios',
-    icon: 'fa-palette',
-    badgeColor: '#f59e0b',
-    recommendedPersona: 'carolina',
-    initialQuestion: '¡Bienvenido/a! Cuéntanos sobre un proyecto donde debiste interpretar las necesidades de una audiencia o cliente para estructurar una propuesta visual creativa.',
-    roleTarget: 'Prácticas en Diseño Gráfico Digital / Medios'
+    accentColor: 'rgba(6, 182, 212, 0.25)',
+    interviewerId: 'carlos',
+    tagline: 'Dominio práctico y resolución técnica según tu especialidad',
+    description: 'Evaluación técnica focalizada en las competencias de tu programa formativo: arquitectura, herramientas, metodologías y resolución metódica de incidentes.',
+    roleTarget: 'Evaluación Técnica de Especialidad'
   }
 ];
 
+// 2. PROGRAMAS / ESPECIALIDADES PARA LA ENTREVISTA TÉCNICA
+export const TECHNICAL_PROGRAMS = [
+  {
+    id: 'software',
+    name: 'Desarrollo de Software / ADSO / Sistemas',
+    shortName: 'Software & Sistemas',
+    icon: 'fa-code',
+    badgeColor: '#06b6d4',
+    initialQuestion: '¡Hola! Te doy la bienvenida a tu evaluación técnica en Desarrollo de Software y Sistemas. Soy el Ing. Carlos Mendoza. Para iniciar, cuéntame sobre el proyecto o sistema más relevante que hayas programado: ¿qué tecnologías empleaste, qué arquitectura definiste y qué problema resolviste?',
+    roleTarget: 'Desarrollo de Software / ADSO / Sistemas'
+  },
+  {
+    id: 'gestion',
+    name: 'Gestión Empresarial, Contable & Administrativa',
+    shortName: 'Gestión & Administración',
+    icon: 'fa-chart-line',
+    badgeColor: '#10b981',
+    initialQuestion: '¡Hola! Te doy la bienvenida a tu evaluación técnica en Gestión Empresarial y Finanzas. Soy el Ing. Carlos Mendoza. Para comenzar, descríbeme un proceso operativo, administrativo o financiero que hayas analizado o mejorado: ¿qué indicadores utilizaste y qué impacto lograste?',
+    roleTarget: 'Gestión Empresarial, Finanzas & Procesos'
+  },
+  {
+    id: 'diseno',
+    name: 'Diseño Gráfico, Multimedia & UI/UX',
+    shortName: 'Diseño & Multimedia',
+    icon: 'fa-palette',
+    badgeColor: '#f59e0b',
+    initialQuestion: '¡Hola! Te doy la bienvenida a tu evaluación técnica en Diseño Gráfico, Multimedia y UX/UI. Soy el Ing. Carlos Mendoza. Para iniciar, descríbeme un proyecto donde hayas interpretado las necesidades de un cliente o usuario: ¿qué herramientas utilizaste y cómo justificaste tus decisiones de diseño?',
+    roleTarget: 'Diseño Gráfico, Multimedia & UI/UX'
+  },
+  {
+    id: 'redes',
+    name: 'Infraestructura, Redes & Telecomunicaciones',
+    shortName: 'Redes & Infraestructura',
+    icon: 'fa-network-wired',
+    badgeColor: '#3b82f6',
+    initialQuestion: '¡Hola! Te doy la bienvenida a tu evaluación técnica en Infraestructura y Redes. Soy el Ing. Carlos Mendoza. Para empezar, cuéntame sobre una experiencia configurando equipos de red, servidores o resolviendo un incidente de conectividad: ¿qué metodología aplicaste?',
+    roleTarget: 'Infraestructura, Redes & TI'
+  }
+];
+
+// 3. PERSONAS EVALUADORAS (Totalmente neutrales, sin entidades externas ni marcas)
 export const INTERVIEWER_PERSONAS = [
   {
     id: 'carolina',
     name: 'Dra. Carolina Ortiz',
-    role: 'Psicóloga Organizacional & Selección',
-    company: 'Agencia Pública de Empleo (APE)',
-    track: 'transversal',
-    trackLabel: 'Transversal (Todas las Carreras)',
-    description: 'Evaluadora de competencias laborales universales: comunicación asertiva, resolución de conflictos, inteligencia emocional y método STAR.',
+    role: 'Líder de Selección & Mentora Vocacional',
+    company: 'Gestión de Talento & RRHH',
+    mode: 'hr',
+    description: 'Psicóloga y mentora experta en competencias socioemocionales: empatía, gestión de la frustración, comunicación asertiva y resolución dialogada de conflictos.',
     gender: 'female',
     image: '/avatars/carolina.jpg',
     badgeColor: '#a855f7',
     accentColor: 'rgba(168, 85, 247, 0.25)',
-    voicePitch: 1.15,
-    voiceRate: 1.0
-  },
-  {
-    id: 'david',
-    name: 'David Morales',
-    role: 'Coordinador de Prácticas & Gestión',
-    company: 'Sector Administrativo y Servicios',
-    track: 'gestion',
-    trackLabel: 'Gestión Empresarial & Finanzas',
-    description: 'Evaluación en organización de procesos, atención a usuarios/clientes, gestión de presupuestos, metas comerciales y proyectos empresariales.',
-    gender: 'male',
-    image: '/avatars/david.jpg',
-    badgeColor: '#10b981',
-    accentColor: 'rgba(16, 185, 129, 0.25)',
-    voicePitch: 0.9,
-    voiceRate: 0.95
+    voicePitch: 1.10,
+    voiceRate: 0.98
   },
   {
     id: 'carlos',
-    name: 'Carlos Mendoza',
-    role: 'Instructor Líder TIC & Procesos',
-    company: 'Centro de Tecnologías e Innovación',
-    track: 'tecnologia',
-    trackLabel: 'Tecnología, Procesos & TIC',
-    description: 'Evaluación de proyectos formativos aplicados, lógica de procesos, herramientas digitales, automatización y solución metódica de problemas.',
+    name: 'Ing. Carlos Mendoza',
+    role: 'Evaluador Técnico de Especialidad',
+    company: 'Panel de Evaluación Técnica',
+    mode: 'technical',
+    description: 'Especialista en proyectos aplicados, arquitectura técnica, herramientas de especialidad y resolución metódica de problemas según el programa.',
     gender: 'male',
     image: '/avatars/carlos.jpg',
     badgeColor: '#06b6d4',
     accentColor: 'rgba(6, 182, 212, 0.25)',
-    voicePitch: 1.0,
-    voiceRate: 1.05
+    voicePitch: 0.88,
+    voiceRate: 1.02
   }
 ];
+
+// Alias para compatibilidad con código legado que importe VOCATIONAL_TRACKS
+export const VOCATIONAL_TRACKS = TECHNICAL_PROGRAMS;

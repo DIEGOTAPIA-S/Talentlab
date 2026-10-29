@@ -1,278 +1,662 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
+
+const API = 'http://localhost:8000';
 
 export default function Planes() {
-  const [activeTab, setActiveTab] = useState('b2b'); // 'b2b' o 'apoyo'
+  const location = useLocation();
+  const session = JSON.parse(localStorage.getItem('user_session') || '{}');
+  const isSuperAdmin = session.role === 'super_admin';
+  const myInstitution = session.institution || 'SENA - Centro de Tecnologías del Software';
+  const coordinatorName = (session.fullName || 'Patricia Gómez Salazar').replace(/^Dra\.\s*/i, '');
+
+  const [plans, setPlans] = useState([]);
+  const [studentsList, setStudentsList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState('todos');
+  const [filterType, setFilterType] = useState('todos');
+  const [search, setSearch] = useState('');
+  const [toast, setToast] = useState(null);
+
+  // Modales
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [progress, setProgress] = useState(50);
+  const [progressVal, setProgressVal] = useState(50);
+  const [statusVal, setStatusVal] = useState('En Progreso');
+  const [editDescVal, setEditDescVal] = useState('');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
-  const planesB2B = [
-    {
-      id: 'semillero',
-      title: 'Plan Básico Institucional',
-      price: '$4,500,000 COP / año',
-      licenses: 'Hasta 250 Estudiantes',
-      badge: 'Modelo Base SENA',
-      features: [
-        'Semáforo Predictivo de Deserción con IA',
-        'Simulador de Entrevistas Vocacionales (Texto)',
-        'Dashboard para Directivos y Orientadores',
-        'Soporte Técnico Digital'
-      ]
-    },
-    {
-      id: 'pro',
-      title: 'Plan Escala Institucional',
-      price: '$4,500,000 COP / licencia institucional',
-      licenses: 'Hasta 600 Estudiantes',
-      badge: 'Recomendado para Colegios',
-      featured: true,
-      features: [
-        'Todas las características del Plan Básico',
-        'Simulador con Reconocimiento de Voz',
-        'Reportes de competencias en PDF con QR',
-        'Acompañamiento psicopedagógico bimensual',
-        'Soporte prioritario 24/7'
-      ]
-    },
-    {
-      id: 'social',
-      title: 'Plan Social Impacto SENA',
-      price: '$0 COP (100% Gratuito)',
-      licenses: 'Escuelas Públicas Vulnerables',
-      badge: 'Responsabilidad Social',
-      features: [
-        'Licencia 100% donada por TalentLab',
-        'Pruebas vocacionales ilimitadas con IA',
-        'Articulación con programas técnicos SENA',
-        'Talleres de inserción laboral juvenil'
-      ]
+  const [newPlanForm, setNewPlanForm] = useState({
+    student_id: '',
+    assigned_to: '',
+    student_email: '',
+    title: '',
+    type: 'Académico / Técnico',
+    priority: 'Alta',
+    deadline: '2026-11-20',
+    description: ''
+  });
+
+  const notify = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const fetchPlansAndStudents = useCallback(async () => {
+    try {
+      setLoading(true);
+      const instQuery = !isSuperAdmin && myInstitution
+        ? `?institution=${encodeURIComponent(myInstitution)}`
+        : '';
+
+      const [plansRes, studentsRes] = await Promise.all([
+        fetch(`${API}/api/plans/support${instQuery}`),
+        fetch(`${API}/api/students${instQuery}`)
+      ]);
+
+      if (plansRes.ok) {
+        const pData = await plansRes.json();
+        setPlans(pData.plans || []);
+      }
+      if (studentsRes.ok) {
+        const sData = await studentsRes.json();
+        setStudentsList(sData.students || []);
+      }
+    } catch (e) {
+      console.warn('Error cargando planes de mejoramiento:', e);
+    } finally {
+      setLoading(false);
     }
-  ];
-
-  const [planesApoyo, setPlanesApoyo] = useState([
-    { id: 101, title: 'Apoyo Económico de Transporte', assignedTo: 'Diego Tapia', status: 'En Progreso', progress: 50 },
-    { id: 102, title: 'Tutoría de Refuerzo en Lógica', assignedTo: 'Camila Restrepo', status: 'Pendiente', progress: 0 },
-    { id: 103, title: 'Revisión Psicopedagógica (Desmotivación)', assignedTo: 'Mateo Bermúdez', status: 'Completado', progress: 100 },
-  ]);
+  }, [isSuperAdmin, myInstitution]);
 
   useEffect(() => {
-    const loadPlans = async () => {
-      try {
-        const res = await fetch('http://localhost:8000/api/plans/support');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.plans && data.plans.length > 0) {
-            setPlanesApoyo(data.plans);
-          }
-        }
-      } catch (e) {
-        console.warn('API planes no disponible, usando locales:', e);
+    fetchPlansAndStudents();
+  }, [fetchPlansAndStudents]);
+
+  // Si viene redirigido desde el Dashboard con ?studentId=...&studentName=...
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const stId = params.get('studentId');
+    const stName = params.get('studentName');
+    if ((stId || stName) && studentsList.length > 0) {
+      const matched = studentsList.find(s => String(s.id) === String(stId) || s.name === stName);
+      if (matched) {
+        setNewPlanForm(prev => ({
+          ...prev,
+          student_id: matched.id,
+          assigned_to: matched.name,
+          student_email: matched.email,
+          title: `Plan de Mejoramiento: Nivelación Integral (${matched.program})`,
+          description: `1. Revisión del factor crítico detectado (${matched.factor}).\n2. Entrenamiento práctico en el Simulador de Entrevistas IA.\n3. Seguimiento de entregas con coordinación académica.`
+        }));
+        setShowCreateModal(true);
       }
-    };
-    loadPlans();
-  }, [activeTab]);
+    }
+  }, [location.search, studentsList]);
+
+  const handleSelectStudentInForm = (stId) => {
+    const st = studentsList.find(s => String(s.id) === String(stId));
+    if (!st) {
+      setNewPlanForm({ ...newPlanForm, student_id: stId });
+      return;
+    }
+    setNewPlanForm({
+      ...newPlanForm,
+      student_id: st.id,
+      assigned_to: st.name,
+      student_email: st.email,
+      priority: st.risk === 'alto' ? 'Alta' : 'Media'
+    });
+  };
+
+  const handleSuggestWithAI = async () => {
+    if (!newPlanForm.student_id) {
+      alert('Selecciona primero al estudiante para que la IA analice su historial.');
+      return;
+    }
+    try {
+      setIsGeneratingAi(true);
+      const res = await fetch(`${API}/api/plans/suggest-ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: Number(newPlanForm.student_id) })
+      });
+      if (res.ok) {
+        const suggestion = await res.json();
+        setNewPlanForm(prev => ({
+          ...prev,
+          title: suggestion.title,
+          type: suggestion.type,
+          priority: suggestion.priority,
+          description: suggestion.description
+        }));
+        notify('✨ Propuesta de Plan de Mejoramiento generada con IA según las métricas del estudiante.');
+      }
+    } catch (e) {
+      alert('No se pudo generar la sugerencia automática.');
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
+  const handleCreatePlan = async (e) => {
+    e.preventDefault();
+    if (!newPlanForm.assigned_to && !newPlanForm.student_id) {
+      alert('Por favor selecciona un estudiante.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/api/plans/support`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newPlanForm,
+          student_id: newPlanForm.student_id ? Number(newPlanForm.student_id) : null,
+          institution: myInstitution,
+          assigned_by: coordinatorName,
+          progress: 0,
+          status: 'En Progreso'
+        })
+      });
+      if (res.ok) {
+        notify('Plan de Mejoramiento creado y enviado al perfil del estudiante.');
+        setShowCreateModal(false);
+        setNewPlanForm({
+          student_id: '',
+          assigned_to: '',
+          student_email: '',
+          title: '',
+          type: 'Académico / Técnico',
+          priority: 'Alta',
+          deadline: '2026-11-20',
+          description: ''
+        });
+        fetchPlansAndStudents();
+      }
+    } catch (e) {
+      alert('Error al guardar el Plan de Mejoramiento.');
+    }
+  };
 
   const handleManageClick = (plan) => {
     setSelectedPlan(plan);
-    setProgress(plan.progress);
+    setProgressVal(plan.progress);
+    setStatusVal(plan.status);
+    setEditDescVal(plan.description || '');
   };
 
-  const handleSavePlanUpdate = async (statusVal) => {
+  const handleSavePlanUpdate = async () => {
     if (!selectedPlan) return;
     try {
-      await fetch(`http://localhost:8000/api/plans/support/${selectedPlan.id}`, {
+      const res = await fetch(`${API}/api/plans/support/${selectedPlan.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ progress: parseInt(progress, 10), status: statusVal || selectedPlan.status })
+        body: JSON.stringify({
+          progress: parseInt(progressVal, 10),
+          status: parseInt(progressVal, 10) >= 100 ? 'Completado' : statusVal,
+          description: editDescVal
+        })
       });
-      setPlanesApoyo(prev => prev.map(p => p.id === selectedPlan.id ? { ...p, progress: parseInt(progress, 10), status: statusVal || p.status } : p));
+      if (res.ok) {
+        notify('Seguimiento del Plan de Mejoramiento actualizado con éxito.');
+        setSelectedPlan(null);
+        fetchPlansAndStudents();
+      }
     } catch (e) {
       console.warn('Error al actualizar plan:', e);
     }
-    alert('Seguimiento actualizado con éxito.');
-    setSelectedPlan(null);
   };
+
+  const handleDeletePlan = async (plan) => {
+    if (!window.confirm(`¿Confirmas eliminar el Plan de Mejoramiento de ${plan.assignedTo}?`)) return;
+    try {
+      const res = await fetch(`${API}/api/plans/support/${plan.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        notify('Plan de Mejoramiento eliminado.');
+        fetchPlansAndStudents();
+      }
+    } catch (e) {
+      alert('Error al eliminar plan.');
+    }
+  };
+
+  const filteredPlans = plans.filter(p => {
+    const matchStatus = filterStatus === 'todos' || p.status === filterStatus;
+    const matchType = filterType === 'todos' || p.type === filterType;
+    const q = search.toLowerCase();
+    const matchSearch = !q ||
+      (p.assignedTo || '').toLowerCase().includes(q) ||
+      (p.title || '').toLowerCase().includes(q) ||
+      (p.description || '').toLowerCase().includes(q);
+    return matchStatus && matchType && matchSearch;
+  });
+
+  const totalCount = plans.length;
+  const inProgressCount = plans.filter(p => p.status !== 'Completado').length;
+  const completedCount = plans.filter(p => p.status === 'Completado').length;
+  const highPriorityCount = plans.filter(p => p.priority === 'Alta' && p.status !== 'Completado').length;
 
   return (
     <>
+      {toast && (
+        <div style={{
+          position: 'fixed', top: '20px', right: '20px', zIndex: 9999,
+          background: 'rgba(16, 185, 129, 0.96)', color: '#fff',
+          padding: '14px 22px', borderRadius: '10px', fontWeight: 600,
+          boxShadow: '0 10px 30px rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', gap: '10px'
+        }}>
+          <i className="fa-solid fa-circle-check"></i>
+          <span>{toast}</span>
+        </div>
+      )}
+
       <header className="panel-header">
         <div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 700 }}>Planes y Modelos de Suscripción</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Gestión de licencias B2B institucionales y planes de intervención de bienestar estudiantil.</p>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px',
+            borderRadius: '999px', background: isSuperAdmin ? 'rgba(245, 158, 11, 0.16)' : 'rgba(168, 85, 247, 0.16)',
+            border: isSuperAdmin ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(168, 85, 247, 0.4)',
+            color: isSuperAdmin ? '#fbbf24' : '#d8b4fe', fontSize: '0.74rem', fontWeight: 700, marginBottom: '6px'
+          }}>
+            <i className="fa-solid fa-clipboard-check"></i>
+            {isSuperAdmin ? 'SUPERVISIÓN GLOBAL DE MEJORAMIENTO' : `PLANES DE MEJORAMIENTO · ${myInstitution.toUpperCase()}`}
+          </div>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 700 }}>Planes de Mejoramiento Académico y de Competencias</h1>
+          <p style={{ color: 'var(--text-muted)' }}>
+            Asignación y monitoreo de planes de nivelación técnica, habilidades blandas (Simulador IA) y permanencia estudiantil. Conectado en tiempo real con el perfil del estudiante.
+          </p>
         </div>
 
-        {/* Selector de Pestañas */}
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button 
-            className={`btn ${activeTab === 'b2b' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setActiveTab('b2b')}
+        <div>
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowCreateModal(true)}
+            style={{ padding: '12px 20px', fontWeight: 700 }}
           >
-            <i className="fa-solid fa-briefcase"></i> Suscripciones B2B (Estudio Financiero)
-          </button>
-          <button 
-            className={`btn ${activeTab === 'apoyo' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setActiveTab('apoyo')}
-          >
-            <i className="fa-solid fa-hand-holding-heart"></i> Planes de Acompañamiento
+            <i className="fa-solid fa-plus-circle"></i> + Asignar Plan de Mejoramiento
           </button>
         </div>
       </header>
 
-      {/* VISTA 1: PLANES B2B INSTITUCIONALES */}
-      {activeTab === 'b2b' && (
-        <div className="grid-3" style={{ marginTop: '20px' }}>
-          {planesB2B.map(plan => (
-            <div 
-              key={plan.id} 
-              className="card" 
-              style={{ 
-                border: plan.featured ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.08)',
-                position: 'relative' 
-              }}
+      {/* KPIs de Planes de Mejoramiento */}
+      <div className="kpi-grid" style={{ marginBottom: '22px' }}>
+        <div className="card kpi-card">
+          <div>
+            <span className="kpi-label">Planes Asignados</span>
+            <div className="kpi-value">{totalCount}</div>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>En {isSuperAdmin ? 'todas las sedes' : 'mi institución'}</span>
+          </div>
+          <i className="fa-solid fa-file-signature kpi-icon"></i>
+        </div>
+        <div className="card kpi-card">
+          <div>
+            <span className="kpi-label">En Ejecución Activa</span>
+            <div className="kpi-value" style={{ color: '#38bdf8' }}>{inProgressCount}</div>
+            <span style={{ fontSize: '0.75rem', color: '#38bdf8' }}>Seguimiento con aprendices</span>
+          </div>
+          <i className="fa-solid fa-spinner kpi-icon"></i>
+        </div>
+        <div className="card kpi-card">
+          <div>
+            <span className="kpi-label">Prioridad Alta</span>
+            <div className="kpi-value" style={{ color: '#f87171' }}>{highPriorityCount}</div>
+            <span style={{ fontSize: '0.75rem', color: '#f87171' }}>Mitigación de deserción</span>
+          </div>
+          <i className="fa-solid fa-bolt kpi-icon"></i>
+        </div>
+        <div className="card kpi-card">
+          <div>
+            <span className="kpi-label">Planes Cumplidos</span>
+            <div className="kpi-value" style={{ color: 'var(--color-success)' }}>{completedCount}</div>
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-success)' }}>Competencias superadas</span>
+          </div>
+          <i className="fa-solid fa-circle-check kpi-icon"></i>
+        </div>
+      </div>
+
+      {/* Barra de Filtros */}
+      <div className="card" style={{ marginBottom: '22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {['todos', 'En Progreso', 'Pendiente', 'Completado'].map(st => (
+            <button
+              key={st}
+              className={`btn ${filterStatus === st ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: '0.8rem', padding: '7px 14px' }}
+              onClick={() => setFilterStatus(st)}
             >
-              {plan.featured && (
-                <span className="badge badge-success" style={{ position: 'absolute', top: '15px', right: '15px' }}>
-                  Más Popular
-                </span>
-              )}
-              <span className="badge badge-warning" style={{ marginBottom: '10px', display: 'inline-block' }}>
-                {plan.badge}
-              </span>
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>{plan.title}</h3>
-              <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '5px' }}>
-                {plan.price}
-              </div>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '20px' }}>
-                Capacidad: <strong>{plan.licenses}</strong>
-              </p>
-
-              <hr style={{ borderColor: 'rgba(255,255,255,0.08)', marginBottom: '15px' }} />
-
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 25px 0', fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.8' }}>
-                {plan.features.map((feat, idx) => (
-                  <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <i className="fa-solid fa-check" style={{ color: 'var(--color-success)', fontSize: '0.8rem' }}></i>
-                    {feat}
-                  </li>
-                ))}
-              </ul>
-
-              <button 
-                className={`btn ${plan.featured ? 'btn-primary' : 'btn-secondary'}`} 
-                style={{ width: '100%' }}
-                onClick={() => alert(`Plan seleccionado: ${plan.title}. Parámetros cotizados según la estructura de ventas de TalentLab.`)}
-              >
-                {plan.id === 'social' ? 'Solicitar Beca Social' : 'Cotizar Licencia Institucional'}
-              </button>
-            </div>
+              {st === 'todos' ? 'Todos los Estados' : st}
+            </button>
           ))}
         </div>
-      )}
 
-      {/* VISTA 2: PLANES DE APOYO A ESTUDIANTES */}
-      {activeTab === 'apoyo' && (
-        <div className="grid-3" style={{ marginTop: '20px' }}>
-          {planesApoyo.map(plan => (
-            <div key={plan.id} className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                <span className={`badge ${
-                  plan.status === 'Completado' ? 'badge-success' : 
-                  plan.status === 'En Progreso' ? 'badge-warning' : 'badge-danger'
-                }`}>
-                  {plan.status}
-                </span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>ID: #{plan.id}</span>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <select
+            className="form-control"
+            style={{ width: 'auto', marginBottom: 0 }}
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+          >
+            <option value="todos">Todas las Dimensiones</option>
+            <option value="Académico / Técnico">Académico / Técnico</option>
+            <option value="Habilidades Blandas y Entrevista">Habilidades Blandas y Entrevista</option>
+            <option value="Permanencia y Bienestar">Permanencia y Bienestar</option>
+            <option value="Psicosocial / Vocacional">Psicosocial / Vocacional</option>
+          </select>
+
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Buscar por estudiante o actividad..."
+            style={{ width: '250px', marginBottom: 0 }}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Listado de Planes de Mejoramiento */}
+      <div style={{ display: 'grid', gap: '16px' }}>
+        {filteredPlans.map(plan => {
+          const isCompleted = plan.status === 'Completado' || plan.progress >= 100;
+          const prioColor = plan.priority === 'Alta' ? '#f87171' : plan.priority === 'Media' ? '#fbbf24' : '#34d399';
+          return (
+            <div key={plan.id} className="card" style={{
+              borderLeft: `4px solid ${isCompleted ? '#10b981' : prioColor}`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                    <span className="badge" style={{ background: 'rgba(168, 85, 247, 0.18)', color: '#d8b4fe' }}>
+                      <i className="fa-solid fa-layer-group"></i> {plan.type}
+                    </span>
+                    <span className="badge" style={{
+                      background: plan.priority === 'Alta' ? 'rgba(239, 68, 68, 0.18)' : 'rgba(245, 158, 11, 0.18)',
+                      color: prioColor
+                    }}>
+                      Prioridad {plan.priority || 'Alta'}
+                    </span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      <i className="fa-regular fa-calendar"></i> Fecha límite: <strong>{plan.deadline || '2026-11-30'}</strong>
+                    </span>
+                    {isSuperAdmin && (
+                      <span style={{ fontSize: '0.76rem', color: '#94a3b8' }}>· 🏛️ {plan.institution}</span>
+                    )}
+                  </div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc' }}>{plan.title}</h3>
+                  <div style={{ fontSize: '0.86rem', color: '#cbd5e1', marginTop: '4px' }}>
+                    <strong>Estudiante:</strong> <span style={{ color: '#38bdf8', fontWeight: 600 }}>{plan.assignedTo}</span>
+                    {plan.studentEmail && <span style={{ color: 'var(--text-muted)' }}> ({plan.studentEmail})</span>}
+                    <span style={{ color: 'var(--text-muted)', marginLeft: '12px' }}>
+                      · Asignado por: {plan.assignedBy || 'Coordinación Académica'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span className={`badge ${isCompleted ? 'badge-success' : plan.status === 'Pendiente' ? 'badge-danger' : 'badge-warning'}`}>
+                    {plan.status} ({plan.progress}%)
+                  </span>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '7px 14px', fontSize: '0.8rem' }}
+                    onClick={() => handleManageClick(plan)}
+                  >
+                    <i className="fa-solid fa-sliders"></i> Evaluar / Actualizar
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '7px 10px', fontSize: '0.8rem', color: '#f87171', borderColor: 'rgba(239,68,68,0.35)' }}
+                    onClick={() => handleDeletePlan(plan)}
+                    title="Eliminar Plan"
+                  >
+                    <i className="fa-solid fa-trash"></i>
+                  </button>
+                </div>
               </div>
-              <h3 style={{ marginBottom: '10px' }}>{plan.title}</h3>
-              <p style={{ color: 'var(--text-muted)', marginBottom: '20px', fontSize: '0.9rem' }}>
-                <i className="fa-solid fa-user-graduate"></i> Asignado a: <strong>{plan.assignedTo}</strong>
-              </p>
-              
-              <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-full)', height: '8px', overflow: 'hidden' }}>
-                <div style={{ 
-                  width: `${plan.progress}%`, 
-                  height: '100%', 
-                  background: 'var(--primary)',
-                  transition: 'width 0.5s ease'
-                }}></div>
+
+              {/* Descripción de compromisos */}
+              {plan.description && (
+                <div style={{
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(15, 23, 42, 0.55)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  fontSize: '0.84rem',
+                  color: '#cbd5e1',
+                  whiteSpace: 'pre-line',
+                  lineHeight: 1.5
+                }}>
+                  <strong style={{ color: '#94a3b8', display: 'block', fontSize: '0.73rem', textTransform: 'uppercase', marginBottom: '4px' }}>
+                    Compromisos y Actividades del Plan de Mejoramiento:
+                  </strong>
+                  {plan.description}
+                </div>
+              )}
+
+              {/* Evidencia o nota registrada por el propio estudiante desde su perfil */}
+              {plan.studentNotes && (
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(6, 182, 212, 0.1)',
+                  border: '1px solid rgba(6, 182, 212, 0.3)',
+                  fontSize: '0.82rem',
+                  color: '#a5f3fc'
+                }}>
+                  <i className="fa-solid fa-comment-dots" style={{ marginRight: '6px' }}></i>
+                  <strong>Evidencia / Reporte del Estudiante ({plan.assignedTo}):</strong> "{plan.studentNotes}"
+                </div>
+              )}
+
+              {/* Barra de Progreso */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ flex: 1, height: '9px', background: 'rgba(255,255,255,0.08)', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${plan.progress}%`,
+                    height: '100%',
+                    background: isCompleted ? 'var(--color-success)' : 'var(--primary)',
+                    transition: 'width 0.3s ease'
+                  }}></div>
+                </div>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, minWidth: '45px', textAlign: 'right' }}>{plan.progress}%</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Avance de la Intervención</span>
-                <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{plan.progress}%</span>
+            </div>
+          );
+        })}
+
+        {filteredPlans.length === 0 && !loading && (
+          <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+            <i className="fa-solid fa-clipboard-question" style={{ fontSize: '2.5rem', color: 'var(--text-muted)', marginBottom: '12px' }}></i>
+            <h3>No hay Planes de Mejoramiento con esos filtros</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Haz clic en "+ Asignar Plan de Mejoramiento" para crear un plan para un estudiante de tu institución.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL CREAR NUEVO PLAN DE MEJORAMIENTO */}
+      {showCreateModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 2000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div className="card" style={{ width: '100%', maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto', border: '1px solid rgba(168, 85, 247, 0.4)' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '4px' }}>
+              <i className="fa-solid fa-clipboard-check" style={{ color: 'var(--primary)' }}></i> Asignar Nuevo Plan de Mejoramiento
+            </h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Este plan aparecerá inmediatamente en la sesión del estudiante seleccionado para que realice sus actividades y registre avances.
+            </p>
+
+            <form onSubmit={handleCreatePlan}>
+              <div className="form-group">
+                <label>Seleccionar Estudiante de {isSuperAdmin ? 'la Plataforma' : myInstitution}</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    className="form-control"
+                    style={{ flex: 1, marginBottom: 0 }}
+                    required
+                    value={newPlanForm.student_id}
+                    onChange={(e) => handleSelectStudentInForm(e.target.value)}
+                  >
+                    <option value="">-- Selecciona un estudiante --</option>
+                    {studentsList.map(st => (
+                      <option key={st.id} value={st.id}>
+                        {st.name} — {st.program} (Riesgo: {st.risk.toUpperCase()} · Prom: {st.academic_score}%)
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ borderColor: '#f59e0b', color: '#fde68a', whiteSpace: 'nowrap' }}
+                    onClick={handleSuggestWithAI}
+                    disabled={isGeneratingAi}
+                  >
+                    <i className="fa-solid fa-wand-magic-sparkles"></i> {isGeneratingAi ? 'Analizando...' : 'Sugerir con IA'}
+                  </button>
+                </div>
               </div>
-              
-              <div style={{ marginTop: '20px' }}>
-                <button className="btn btn-secondary" style={{ width: '100%' }} onClick={() => handleManageClick(plan)}>
-                  Gestionar Plan <i className="fa-solid fa-pen-to-square"></i>
+
+              <div className="form-group">
+                <label>Título del Plan de Mejoramiento</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  required
+                  placeholder="Ej. Plan de Mejoramiento: Nivelación en Arquitectura de Software y Método STAR"
+                  value={newPlanForm.title}
+                  onChange={(e) => setNewPlanForm({ ...newPlanForm, title: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label>Dimensión / Tipo</label>
+                  <select
+                    className="form-control"
+                    value={newPlanForm.type}
+                    onChange={(e) => setNewPlanForm({ ...newPlanForm, type: e.target.value })}
+                  >
+                    <option value="Académico / Técnico">Académico / Técnico</option>
+                    <option value="Habilidades Blandas y Entrevista">Habilidades Blandas y Entrevista</option>
+                    <option value="Permanencia y Bienestar">Permanencia y Bienestar</option>
+                    <option value="Psicosocial / Vocacional">Psicosocial / Vocacional</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Prioridad</label>
+                  <select
+                    className="form-control"
+                    value={newPlanForm.priority}
+                    onChange={(e) => setNewPlanForm({ ...newPlanForm, priority: e.target.value })}
+                  >
+                    <option value="Alta">🔴 Alta (Urgente)</option>
+                    <option value="Media">🟡 Media (Preventiva)</option>
+                    <option value="Baja">🟢 Baja (Refuerzo)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Fecha Límite</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={newPlanForm.deadline}
+                    onChange={(e) => setNewPlanForm({ ...newPlanForm, deadline: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Actividades de Nivelación, Compromisos y Entregables</label>
+                <textarea
+                  className="form-control"
+                  rows="4"
+                  required
+                  placeholder="Describe los compromisos concretos que debe cumplir el estudiante..."
+                  value={newPlanForm.description}
+                  onChange={(e) => setNewPlanForm({ ...newPlanForm, description: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  <i className="fa-solid fa-paper-plane"></i> Asignar Plan al Estudiante
                 </button>
               </div>
-            </div>
-          ))}
+            </form>
+          </div>
         </div>
       )}
 
-      {/* Modal Gestionar Plan */}
+      {/* MODAL EVALUAR Y ACTUALIZAR SEGUIMIENTO */}
       {selectedPlan && (
         <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', 
-          backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', 
-          justifyContent: 'center', alignItems: 'center'
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 2000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
         }}>
-          <div className="card" style={{ width: '500px', maxWidth: '90%', position: 'relative' }}>
-            <button 
-              onClick={() => setSelectedPlan(null)}
-              style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.5rem', cursor: 'pointer' }}
-            >&times;</button>
-            
-            <h2 style={{ marginBottom: '5px' }}>{selectedPlan.title}</h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
-              Estudiante: <strong>{selectedPlan.assignedTo}</strong>
+          <div className="card" style={{ width: '100%', maxWidth: '520px', border: '1px solid rgba(255,255,255,0.15)' }}>
+            <h3 style={{ marginBottom: '6px', fontSize: '1.2rem', fontWeight: 700 }}>
+              Evaluar Avance del Plan de Mejoramiento
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
+              Estudiante: <strong style={{ color: '#fff' }}>{selectedPlan.assignedTo}</strong> · {selectedPlan.title}
             </p>
-            
+
             <div className="form-group">
-              <label className="form-label">Estado de la Intervención</label>
-              <select 
-                className="form-control" 
-                defaultValue={selectedPlan.status || "En Progreso"}
-                id="planStatusSelect"
+              <label>Estado del Plan</label>
+              <select
+                className="form-control"
+                value={statusVal}
+                onChange={(e) => {
+                  const st = e.target.value;
+                  setStatusVal(st);
+                  if (st === 'Completado') setProgressVal(100);
+                }}
               >
                 <option value="Pendiente">Pendiente</option>
                 <option value="En Progreso">En Progreso</option>
-                <option value="Completado">Completado</option>
+                <option value="Completado">Completado (100%)</option>
               </select>
             </div>
 
-            <div className="form-group" style={{ marginTop: '20px' }}>
-              <label className="form-label">Progreso del Plan: {progress}%</label>
+            <div className="form-group">
+              <label>Porcentaje de Cumplimiento: <strong>{progressVal}%</strong></label>
               <input 
                 type="range" 
-                min="0" max="100" 
-                value={progress}
-                onChange={(e) => setProgress(e.target.value)}
-                style={{ width: '100%', cursor: 'pointer', marginTop: '10px' }}
+                min="0" 
+                max="100" 
+                step="5"
+                value={progressVal} 
+                onChange={(e) => setProgressVal(e.target.value)}
+                style={{ width: '100%', accentColor: 'var(--primary)', marginTop: '6px' }}
               />
             </div>
 
-            <div className="form-group" style={{ marginTop: '20px' }}>
-              <label className="form-label">Notas de Seguimiento Psicopedagógico</label>
-              <textarea 
-                className="form-control" 
-                rows="3" 
-                placeholder="Ej. El estudiante asistió a la sesión de orientación y se ajustó el plan de permanencia..."
-              ></textarea>
+            <div className="form-group">
+              <label>Compromisos / Observaciones del Coordinador</label>
+              <textarea
+                className="form-control"
+                rows="3"
+                value={editDescVal}
+                onChange={(e) => setEditDescVal(e.target.value)}
+              />
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '25px' }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setSelectedPlan(null)}>Cancelar</button>
-              <button 
-                className="btn btn-primary" 
-                style={{ flex: 1 }} 
-                onClick={() => {
-                  const sel = document.getElementById('planStatusSelect');
-                  handleSavePlanUpdate(sel ? sel.value : selectedPlan.status);
-                }}
-              >
-                Guardar Cambios
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '18px' }}>
+              <button className="btn btn-secondary" onClick={() => setSelectedPlan(null)}>
+                Cancelar
+              </button>
+              <button className="btn btn-primary" onClick={handleSavePlanUpdate}>
+                Guardar Calificación de Avance
               </button>
             </div>
           </div>

@@ -6,8 +6,10 @@ export default function SidebarLayout() {
   const navigate = useNavigate();
 
   const session = JSON.parse(localStorage.getItem('user_session') || '{}');
-  const rawName = session.fullName || 'Patricia Gómez Salazar';
-  const adminName = rawName.replace(/^Dra\.\s*/i, '');
+  const isSuperAdmin = session.role === 'super_admin';
+  const rawName = session.fullName || (isSuperAdmin ? 'Carlos Alberto Ramírez' : 'Patricia Gómez Salazar');
+  const displayName = rawName.replace(/^Dra\.\s*/i, '');
+  const institutionName = session.institution || 'SENA - Centro de Tecnologías del Software';
 
   const handleLogout = (e) => {
     e.preventDefault();
@@ -17,69 +19,105 @@ export default function SidebarLayout() {
 
   return (
     <div className="dashboard-layout">
-      {/* Sidebar para Administrador */}
+      {/* Sidebar diferenciada para Super Administrador vs. Directivo Institucional */}
       <aside className="sidebar">
         <div>
-          <Link to="/dashboard" className="sidebar-brand">
+          <Link to={isSuperAdmin ? "/admin/usuarios" : "/dashboard"} className="sidebar-brand">
             <i className="fa-solid fa-flask-bubble"></i> Talent<span>Lab</span>
           </Link>
 
-          {/* Badge del Perfil de Administrador */}
+          {/* Badge Dinámico según el Rol */}
           <div style={{ padding: '0 15px', marginBottom: '18px' }}>
             <div style={{ 
-              background: 'rgba(139, 92, 246, 0.15)', border: '1px solid rgba(139, 92, 246, 0.35)', 
-              borderRadius: '8px', padding: '10px 12px' 
+              background: isSuperAdmin ? 'rgba(245, 158, 11, 0.15)' : 'rgba(139, 92, 246, 0.15)',
+              border: isSuperAdmin ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(139, 92, 246, 0.35)', 
+              borderRadius: '10px', padding: '11px 12px' 
             }}>
-              <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--primary)', fontWeight: 700, display: 'block' }}>
-                <i className="fa-solid fa-shield-halved"></i> Perfil Activo
+              <span style={{
+                fontSize: '0.7rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: isSuperAdmin ? '#fbbf24' : 'var(--primary)',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <i className={`fa-solid ${isSuperAdmin ? 'fa-crown' : 'fa-building-columns'}`}></i>
+                {isSuperAdmin ? 'Gobierno Global' : 'Perfil Directivo'}
               </span>
-              <strong style={{ fontSize: '0.88rem', display: 'block', color: 'var(--text-main)', marginTop: '2px' }}>
-                ADMINISTRADOR
+              <strong style={{ fontSize: '0.86rem', display: 'block', color: 'var(--text-main)', marginTop: '3px' }}>
+                {isSuperAdmin ? 'ADMINISTRADOR GENERAL' : 'DIRECTIVO / COORDINADOR'}
               </strong>
-              <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                {adminName}
+              <span style={{ fontSize: '0.76rem', color: '#e2e8f0', display: 'block', marginTop: '2px', fontWeight: 500 }}>
+                {displayName}
+              </span>
+              <span style={{
+                fontSize: '0.69rem',
+                color: isSuperAdmin ? '#fde68a' : '#c4b5fd',
+                display: 'block',
+                marginTop: '4px',
+                paddingTop: '4px',
+                borderTop: '1px solid rgba(255,255,255,0.08)',
+                lineHeight: 1.25
+              }}>
+                <i className="fa-solid fa-location-dot" style={{ marginRight: '4px' }}></i>
+                {institutionName}
               </span>
             </div>
           </div>
 
           <ul className="sidebar-menu">
-            <li className={`sidebar-item ${location.pathname === '/dashboard' ? 'active' : ''}`}>
-              <Link to="/dashboard"><i className="fa-solid fa-chart-line"></i> Dashboard Riesgo</Link>
-            </li>
-            <li className={`sidebar-item ${location.pathname === '/consolidado' ? 'active' : ''}`}>
-              <Link to="/consolidado"><i className="fa-solid fa-layer-group"></i> Consolidado Global</Link>
-            </li>
-            <li className={`sidebar-item ${location.pathname === '/alumnos' ? 'active' : ''}`}>
-              <Link to="/alumnos"><i className="fa-solid fa-users"></i> Alumnos Registrados</Link>
-            </li>
-            <li className={`sidebar-item ${location.pathname === '/planes' ? 'active' : ''}`}>
-              <Link to="/planes"><i className="fa-solid fa-file-contract"></i> Planes de Apoyo</Link>
-            </li>
-            <li className={`sidebar-item ${location.pathname === '/egresados' ? 'active' : ''}`}>
-              <Link to="/egresados"><i className="fa-solid fa-network-wired"></i> Red de Egresados</Link>
-            </li>
-            <li className={`sidebar-item ${location.pathname === '/perfil' ? 'active' : ''}`}>
-              <Link to="/perfil"><i className="fa-solid fa-id-card"></i> Mi Perfil y Sistema</Link>
-            </li>
+            {isSuperAdmin ? (
+              <>
+                <li className={`sidebar-item ${location.pathname === '/admin/usuarios' ? 'active' : ''}`}>
+                  <Link to="/admin/usuarios"><i className="fa-solid fa-users-gear"></i> Gestión de Usuarios (CRUD)</Link>
+                </li>
+                <li className={`sidebar-item ${location.pathname === '/consolidado' ? 'active' : ''}`}>
+                  <Link to="/consolidado"><i className="fa-solid fa-layer-group"></i> Consolidado Multi-Sede</Link>
+                </li>
+                <li className={`sidebar-item ${location.pathname === '/alumnos' ? 'active' : ''}`}>
+                  <Link to="/alumnos"><i className="fa-solid fa-user-graduate"></i> Todos los Estudiantes</Link>
+                </li>
+                <li className={`sidebar-item ${location.pathname === '/planes' ? 'active' : ''}`}>
+                  <Link to="/planes"><i className="fa-solid fa-clipboard-check"></i> Planes de Mejoramiento</Link>
+                </li>
+                <li className={`sidebar-item ${location.pathname === '/egresados' ? 'active' : ''}`}>
+                  <Link to="/egresados"><i className="fa-solid fa-network-wired"></i> Red de Egresados</Link>
+                </li>
+                <li className={`sidebar-item ${location.pathname === '/perfil' ? 'active' : ''}`}>
+                  <Link to="/perfil"><i className="fa-solid fa-server"></i> Auditoría y Sistema</Link>
+                </li>
+              </>
+            ) : (
+              <>
+                <li className={`sidebar-item ${location.pathname === '/dashboard' ? 'active' : ''}`}>
+                  <Link to="/dashboard"><i className="fa-solid fa-chart-line"></i> Riesgo de mi Institución</Link>
+                </li>
+                <li className={`sidebar-item ${location.pathname === '/alumnos' ? 'active' : ''}`}>
+                  <Link to="/alumnos"><i className="fa-solid fa-users"></i> Estudiantes de mi Sede</Link>
+                </li>
+                <li className={`sidebar-item ${location.pathname === '/planes' ? 'active' : ''}`}>
+                  <Link to="/planes"><i className="fa-solid fa-clipboard-check"></i> Planes de Mejoramiento</Link>
+                </li>
+                <li className={`sidebar-item ${location.pathname === '/consolidado' ? 'active' : ''}`}>
+                  <Link to="/consolidado"><i className="fa-solid fa-chart-pie"></i> Analítica de mi Sede</Link>
+                </li>
+                <li className={`sidebar-item ${location.pathname === '/egresados' ? 'active' : ''}`}>
+                  <Link to="/egresados"><i className="fa-solid fa-network-wired"></i> Red de Egresados</Link>
+                </li>
+                <li className={`sidebar-item ${location.pathname === '/perfil' ? 'active' : ''}`}>
+                  <Link to="/perfil"><i className="fa-solid fa-id-card"></i> Mi Perfil Institucional</Link>
+                </li>
+              </>
+            )}
           </ul>
         </div>
 
         <div>
-          {/* Indicador de Estado de Base de Datos */}
-          <div style={{ 
-            padding: '10px 14px', margin: '0 15px 12px 15px', 
-            background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', 
-            borderRadius: '6px', fontSize: '0.72rem', color: 'var(--text-muted)' 
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-success)', fontWeight: 600, marginBottom: '2px' }}>
-              <i className="fa-solid fa-database"></i> Base de Datos Activa
-            </div>
-            <span>SQLite Local / PostgreSQL Ready</span>
-          </div>
-
           <div className="sidebar-item">
             <a href="#" onClick={handleLogout} style={{ color: 'var(--color-danger)' }}>
-              <i className="fa-solid fa-arrow-right-from-bracket"></i> Salir
+              <i className="fa-solid fa-arrow-right-from-bracket"></i> Cambiar Perfil / Salir
             </a>
           </div>
         </div>
