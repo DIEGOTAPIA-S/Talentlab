@@ -101,24 +101,38 @@ export default function Consolidado() {
       {/* Filtros */}
       <div className="card" style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'end', marginBottom: '22px' }}>
         <div style={{ flex: 1, minWidth: '240px' }}>
-          <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            {session.role === 'super_admin' ? 'Institución (Gobierno Global)' : 'Mi Institución (Aislada)'}
+          <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+            Institución
           </label>
           <select
             className="form-control"
+            style={{ backgroundColor: '#0f172a', color: '#f8fafc', colorScheme: 'dark' }}
             value={session.role === 'admin_tenant' ? session.institution : institution}
             disabled={session.role === 'admin_tenant'}
             onChange={e => setInstitution(e.target.value)}
           >
-            {session.role === 'super_admin' && <option value="todas">Todas las instituciones</option>}
-            {data?.filters.institutions.map(i => <option key={i} value={i}>{i}</option>)}
+            {session.role === 'super_admin' && (
+              <option value="todas" style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>Todas las instituciones</option>
+            )}
+            {data?.filters.institutions.map(i => (
+              <option key={i} value={i} style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>{i}</option>
+            ))}
           </select>
         </div>
         <div style={{ flex: 1, minWidth: '240px' }}>
-          <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Programa / Carrera</label>
-          <select className="form-control" value={program} onChange={e => setProgram(e.target.value)}>
-            <option value="todos">Todos los programas</option>
-            {data?.filters.programs.map(p => <option key={p} value={p}>{p}</option>)}
+          <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+            Programa / Carrera
+          </label>
+          <select
+            className="form-control"
+            style={{ backgroundColor: '#0f172a', color: '#f8fafc', colorScheme: 'dark' }}
+            value={program}
+            onChange={e => setProgram(e.target.value)}
+          >
+            <option value="todos" style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>Todos los programas</option>
+            {data?.filters.programs.map(p => (
+              <option key={p} value={p} style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>{p}</option>
+            ))}
           </select>
         </div>
         <button className="btn btn-secondary" onClick={() => { if (session.role === 'super_admin') setInstitution('todas'); setProgram('todos'); }}>
@@ -198,7 +212,7 @@ export default function Consolidado() {
 
                 {expanded[inst.institution] && (
                   <div style={{ marginTop: '16px', overflowX: 'auto' }}>
-                    <table className="table" style={{ width: '100%' }}>
+                    <table className="data-table" style={{ width: '100%' }}>
                       <thead><tr>
                         <th>Programa</th><th>Estudiantes</th><th>Riesgo (A/M/B)</th><th>Asistencia</th><th>Entrevista IA</th>
                       </tr></thead>
@@ -225,7 +239,7 @@ export default function Consolidado() {
             <i className="fa-solid fa-graduation-cap" style={{ color: 'var(--secondary)' }}></i> Por Programa / Carrera
           </h2>
           <div className="card" style={{ overflowX: 'auto' }}>
-            <table className="table" style={{ width: '100%' }}>
+            <table className="data-table" style={{ width: '100%' }}>
               <thead><tr>
                 <th>Programa</th><th>Estudiantes</th><th>Distribución de riesgo</th><th>Asistencia</th><th>Prom.</th><th>Entrevista IA</th>
               </tr></thead>
@@ -249,7 +263,7 @@ export default function Consolidado() {
             <i className="fa-solid fa-list" style={{ color: 'var(--primary)' }}></i> Listado Consolidado
           </h2>
           <div className="card" style={{ overflowX: 'auto' }}>
-            <table className="table" style={{ width: '100%' }}>
+            <table className="data-table" style={{ width: '100%' }}>
               <thead><tr>
                 <th>Estudiante</th><th>Institución</th><th>Programa</th><th>Asistencia</th><th>Entrevista IA</th><th>Riesgo</th>
               </tr></thead>

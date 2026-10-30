@@ -253,18 +253,11 @@ export default function Planes() {
 
       <header className="panel-header">
         <div>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px',
-            borderRadius: '999px', background: isSuperAdmin ? 'rgba(245, 158, 11, 0.16)' : 'rgba(168, 85, 247, 0.16)',
-            border: isSuperAdmin ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(168, 85, 247, 0.4)',
-            color: isSuperAdmin ? '#fbbf24' : '#d8b4fe', fontSize: '0.74rem', fontWeight: 700, marginBottom: '6px'
-          }}>
-            <i className="fa-solid fa-clipboard-check"></i>
-            {isSuperAdmin ? 'SUPERVISIÓN GLOBAL DE MEJORAMIENTO' : `PLANES DE MEJORAMIENTO · ${myInstitution.toUpperCase()}`}
-          </div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 700 }}>Planes de Mejoramiento Académico y de Competencias</h1>
-          <p style={{ color: 'var(--text-muted)' }}>
-            Asignación y monitoreo de planes de nivelación técnica, habilidades blandas (Simulador IA) y permanencia estudiantil. Conectado en tiempo real con el perfil del estudiante.
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '6px' }}>
+            Planes de Mejoramiento
+          </h1>
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+            Asignación y monitoreo de planes de nivelación técnica, habilidades blandas y permanencia estudiantil.
           </p>
         </div>
 
@@ -274,7 +267,7 @@ export default function Planes() {
             onClick={() => setShowCreateModal(true)}
             style={{ padding: '12px 20px', fontWeight: 700 }}
           >
-            <i className="fa-solid fa-plus-circle"></i> + Asignar Plan de Mejoramiento
+            <i className="fa-solid fa-plus-circle"></i> Asignar Plan
           </button>
         </div>
       </header>
@@ -383,7 +376,7 @@ export default function Planes() {
                       <i className="fa-regular fa-calendar"></i> Fecha límite: <strong>{plan.deadline || '2026-11-30'}</strong>
                     </span>
                     {isSuperAdmin && (
-                      <span style={{ fontSize: '0.76rem', color: '#94a3b8' }}>· 🏛️ {plan.institution}</span>
+                      <span style={{ fontSize: '0.76rem', color: '#94a3b8' }}>· <i className="fa-solid fa-building-columns"></i> {plan.institution}</span>
                     )}
                   </div>
                   <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc' }}>{plan.title}</h3>
@@ -485,7 +478,7 @@ export default function Planes() {
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 2000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
         }}>
-          <div className="card" style={{ width: '100%', maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto', border: '1px solid rgba(168, 85, 247, 0.4)' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '660px', maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box', border: '1px solid rgba(168, 85, 247, 0.4)' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '4px' }}>
               <i className="fa-solid fa-clipboard-check" style={{ color: 'var(--primary)' }}></i> Asignar Nuevo Plan de Mejoramiento
             </h3>
@@ -495,32 +488,32 @@ export default function Planes() {
 
             <form onSubmit={handleCreatePlan}>
               <div className="form-group">
-                <label>Seleccionar Estudiante de {isSuperAdmin ? 'la Plataforma' : myInstitution}</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <select
-                    className="form-control"
-                    style={{ flex: 1, marginBottom: 0 }}
-                    required
-                    value={newPlanForm.student_id}
-                    onChange={(e) => handleSelectStudentInForm(e.target.value)}
-                  >
-                    <option value="">-- Selecciona un estudiante --</option>
-                    {studentsList.map(st => (
-                      <option key={st.id} value={st.id}>
-                        {st.name} — {st.program} (Riesgo: {st.risk.toUpperCase()} · Prom: {st.academic_score}%)
-                      </option>
-                    ))}
-                  </select>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <label style={{ margin: 0 }}>Estudiante ({isSuperAdmin ? 'Todas las sedes' : myInstitution})</label>
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    style={{ borderColor: '#f59e0b', color: '#fde68a', whiteSpace: 'nowrap' }}
+                    style={{ borderColor: '#f59e0b', color: '#fde68a', padding: '5px 12px', fontSize: '0.78rem' }}
                     onClick={handleSuggestWithAI}
                     disabled={isGeneratingAi}
                   >
-                    <i className="fa-solid fa-wand-magic-sparkles"></i> {isGeneratingAi ? 'Analizando...' : 'Sugerir con IA'}
+                    <i className="fa-solid fa-wand-magic-sparkles"></i> {isGeneratingAi ? 'Analizando...' : 'Autocompletar Plan con IA'}
                   </button>
                 </div>
+                <select
+                  className="form-control"
+                  style={{ width: '100%', marginTop: '4px' }}
+                  required
+                  value={newPlanForm.student_id}
+                  onChange={(e) => handleSelectStudentInForm(e.target.value)}
+                >
+                  <option value="">-- Selecciona un estudiante --</option>
+                  {studentsList.map(st => (
+                    <option key={st.id} value={st.id}>
+                      {st.name} — {st.program} (Riesgo {st.risk.toUpperCase()} · {st.academic_score} pts)
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">
@@ -535,7 +528,7 @@ export default function Planes() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: '12px' }}>
                 <div className="form-group">
                   <label>Dimensión / Tipo</label>
                   <select
@@ -556,9 +549,9 @@ export default function Planes() {
                     value={newPlanForm.priority}
                     onChange={(e) => setNewPlanForm({ ...newPlanForm, priority: e.target.value })}
                   >
-                    <option value="Alta">🔴 Alta (Urgente)</option>
-                    <option value="Media">🟡 Media (Preventiva)</option>
-                    <option value="Baja">🟢 Baja (Refuerzo)</option>
+                    <option value="Alta">Alta (Urgente)</option>
+                    <option value="Media">Media (Preventiva)</option>
+                    <option value="Baja">Baja (Refuerzo)</option>
                   </select>
                 </div>
                 <div className="form-group">

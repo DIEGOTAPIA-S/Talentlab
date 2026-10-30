@@ -19,51 +19,50 @@ export default function SidebarLayout() {
 
   return (
     <div className="dashboard-layout">
-      {/* Sidebar diferenciada para Super Administrador vs. Directivo Institucional */}
       <aside className="sidebar">
         <div>
           <Link to={isSuperAdmin ? "/admin/usuarios" : "/dashboard"} className="sidebar-brand">
             <i className="fa-solid fa-flask-bubble"></i> Talent<span>Lab</span>
           </Link>
 
-          {/* Badge Dinámico según el Rol */}
-          <div style={{ padding: '0 15px', marginBottom: '18px' }}>
+          {/* Tarjeta de Identidad del Rol Activo */}
+          <div style={{ padding: '0 8px', marginBottom: '22px' }}>
             <div style={{ 
-              background: isSuperAdmin ? 'rgba(245, 158, 11, 0.15)' : 'rgba(139, 92, 246, 0.15)',
-              border: isSuperAdmin ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(139, 92, 246, 0.35)', 
-              borderRadius: '10px', padding: '11px 12px' 
+              background: isSuperAdmin ? 'rgba(245, 158, 11, 0.12)' : 'rgba(139, 92, 246, 0.12)',
+              border: isSuperAdmin ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(139, 92, 246, 0.3)', 
+              borderRadius: '10px',
+              padding: '12px 14px' 
             }}>
               <span style={{
-                fontSize: '0.7rem',
+                fontSize: '0.68rem',
                 textTransform: 'uppercase',
-                letterSpacing: '0.05em',
+                letterSpacing: '0.06em',
                 color: isSuperAdmin ? '#fbbf24' : 'var(--primary)',
                 fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px'
               }}>
-                <i className={`fa-solid ${isSuperAdmin ? 'fa-crown' : 'fa-building-columns'}`}></i>
-                {isSuperAdmin ? 'Gobierno Global' : 'Perfil Directivo'}
+                <i className={`fa-solid ${isSuperAdmin ? 'fa-user-shield' : 'fa-building-columns'}`}></i>
+                {isSuperAdmin ? 'Administrador General' : 'Directivo Institucional'}
               </span>
-              <strong style={{ fontSize: '0.86rem', display: 'block', color: 'var(--text-main)', marginTop: '3px' }}>
-                {isSuperAdmin ? 'ADMINISTRADOR GENERAL' : 'DIRECTIVO / COORDINADOR'}
-              </strong>
-              <span style={{ fontSize: '0.76rem', color: '#e2e8f0', display: 'block', marginTop: '2px', fontWeight: 500 }}>
+              <strong style={{ fontSize: '0.9rem', display: 'block', color: 'var(--text-main)', marginTop: '4px' }}>
                 {displayName}
-              </span>
-              <span style={{
-                fontSize: '0.69rem',
-                color: isSuperAdmin ? '#fde68a' : '#c4b5fd',
-                display: 'block',
-                marginTop: '4px',
-                paddingTop: '4px',
-                borderTop: '1px solid rgba(255,255,255,0.08)',
-                lineHeight: 1.25
-              }}>
-                <i className="fa-solid fa-location-dot" style={{ marginRight: '4px' }}></i>
-                {institutionName}
-              </span>
+              </strong>
+              {!isSuperAdmin && (
+                <span style={{
+                  fontSize: '0.72rem',
+                  color: '#c4b5fd',
+                  display: 'block',
+                  marginTop: '6px',
+                  paddingTop: '6px',
+                  borderTop: '1px solid rgba(255,255,255,0.08)',
+                  lineHeight: 1.3
+                }}>
+                  <i className="fa-solid fa-location-dot" style={{ marginRight: '4px' }}></i>
+                  {institutionName}
+                </span>
+              )}
             </div>
           </div>
 
@@ -71,13 +70,13 @@ export default function SidebarLayout() {
             {isSuperAdmin ? (
               <>
                 <li className={`sidebar-item ${location.pathname === '/admin/usuarios' ? 'active' : ''}`}>
-                  <Link to="/admin/usuarios"><i className="fa-solid fa-users-gear"></i> Gestión de Usuarios (CRUD)</Link>
+                  <Link to="/admin/usuarios"><i className="fa-solid fa-users-gear"></i> Gestión de Usuarios</Link>
                 </li>
                 <li className={`sidebar-item ${location.pathname === '/consolidado' ? 'active' : ''}`}>
-                  <Link to="/consolidado"><i className="fa-solid fa-layer-group"></i> Consolidado Multi-Sede</Link>
+                  <Link to="/consolidado"><i className="fa-solid fa-layer-group"></i> Consolidado General</Link>
                 </li>
                 <li className={`sidebar-item ${location.pathname === '/alumnos' ? 'active' : ''}`}>
-                  <Link to="/alumnos"><i className="fa-solid fa-user-graduate"></i> Todos los Estudiantes</Link>
+                  <Link to="/alumnos"><i className="fa-solid fa-user-graduate"></i> Directorio de Estudiantes</Link>
                 </li>
                 <li className={`sidebar-item ${location.pathname === '/planes' ? 'active' : ''}`}>
                   <Link to="/planes"><i className="fa-solid fa-clipboard-check"></i> Planes de Mejoramiento</Link>
@@ -86,7 +85,7 @@ export default function SidebarLayout() {
                   <Link to="/egresados"><i className="fa-solid fa-network-wired"></i> Red de Egresados</Link>
                 </li>
                 <li className={`sidebar-item ${location.pathname === '/perfil' ? 'active' : ''}`}>
-                  <Link to="/perfil"><i className="fa-solid fa-server"></i> Auditoría y Sistema</Link>
+                  <Link to="/perfil"><i className="fa-solid fa-user-gear"></i> Mi Perfil</Link>
                 </li>
               </>
             ) : (
@@ -107,7 +106,7 @@ export default function SidebarLayout() {
                   <Link to="/egresados"><i className="fa-solid fa-network-wired"></i> Red de Egresados</Link>
                 </li>
                 <li className={`sidebar-item ${location.pathname === '/perfil' ? 'active' : ''}`}>
-                  <Link to="/perfil"><i className="fa-solid fa-id-card"></i> Mi Perfil Institucional</Link>
+                  <Link to="/perfil"><i className="fa-solid fa-user-gear"></i> Mi Perfil</Link>
                 </li>
               </>
             )}
@@ -117,13 +116,12 @@ export default function SidebarLayout() {
         <div>
           <div className="sidebar-item">
             <a href="#" onClick={handleLogout} style={{ color: 'var(--color-danger)' }}>
-              <i className="fa-solid fa-arrow-right-from-bracket"></i> Cambiar Perfil / Salir
+              <i className="fa-solid fa-arrow-right-from-bracket"></i> Cerrar Sesión
             </a>
           </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="main-content">
         <Outlet />
       </main>

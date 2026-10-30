@@ -156,6 +156,8 @@ def init_db():
             cursor.execute(f'ALTER TABLE {table} ADD COLUMN {column} {ddl}')
 
     _add_column('students', 'institution', "TEXT DEFAULT 'SENA - Centro de Tecnologías del Software'")
+    _add_column('students', 'emotional_status', "TEXT DEFAULT 'Estable'")
+    _add_column('students', 'absences_count', "INTEGER DEFAULT 1")
     _add_column('interview_history', 'grammar', 'INTEGER')
     _add_column('interview_history', 'body_language', 'INTEGER')
     _add_column('interview_history', 'alignment', 'INTEGER')
@@ -169,6 +171,9 @@ def init_db():
     _add_column('support_plans', 'assigned_by', "TEXT DEFAULT 'Coordinación Académica'")
     _add_column('support_plans', 'student_notes', "TEXT DEFAULT ''")
     cursor.execute("UPDATE students SET institution = 'SENA - Centro de Tecnologías del Software' WHERE institution IS NULL OR institution = ''")
+    cursor.execute("UPDATE students SET emotional_status = 'Desmotivación Vocacional' WHERE primary_factor LIKE '%Desmotivación%' AND (emotional_status IS NULL OR emotional_status = 'Estable')")
+    cursor.execute("UPDATE students SET emotional_status = 'Estrés / Cruce Estudio-Trabajo' WHERE primary_factor LIKE '%Tiempo%' AND (emotional_status IS NULL OR emotional_status = 'Estable')")
+    cursor.execute("UPDATE students SET absences_count = MAX(0, CAST(ROUND((100.0 - attendance) / 4.0) AS INTEGER)) WHERE absences_count IS NULL OR absences_count <= 1")
 
     # Semilla inicial con datos del Estudio Técnico si la tabla está vacía
     cursor.execute('SELECT COUNT(*) FROM students')
@@ -337,11 +342,20 @@ def init_db():
     cursor.execute('''
         INSERT OR IGNORE INTO system_profiles (email, full_name, role, institution, title, phone, department, status, password)
         VALUES 
-        ('admin@talentlab.edu', 'Carlos Alberto Ramírez', 'super_admin', 'TalentLab S.A.S. - Gobierno Global', 'Administrador General de Plataforma (Super Admin)', '+57 300 910 2030', 'Dirección de Tecnología & Gobierno Multi-Tenant', 'Activo', 'admin123'),
+        ('admin@talentlab.edu', 'Carlos Alberto Ramírez', 'super_admin', 'Dirección General', 'Administrador General', '+57 300 910 2030', 'Administración de Plataforma', 'Activo', 'admin123'),
         ('director@talentlab.edu', 'Patricia Gómez Salazar', 'admin_tenant', 'SENA - Centro de Tecnologías del Software', 'Coordinadora de Formación y Permanencia Académica', '+57 (601) 546-1500', 'Coordinación de Formación Profesional', 'Activo', 'director123'),
         ('rector@sena-cs.edu.co', 'Dr. Hernán Darío Mejía', 'admin_tenant', 'SENA - Centro de Comercio y Servicios', 'Subdirector / Rector Institucional', '+57 (604) 576-0000', 'Dirección General de Centro', 'Activo', 'director123'),
         ('coordinador@udea-tec.edu.co', 'Dra. Claudia Marcela Vélez', 'admin_tenant', 'Institución Universitaria Tecnológica de Antioquia', 'Coordinadora de Ingeniería y Permanencia', '+57 (604) 444-3700', 'Facultad de Ingeniería', 'Activo', 'director123'),
         ('estudiante@talentlab.edu', 'Diego Tapia', 'student', 'SENA - Centro de Tecnologías del Software', 'Aprendiz Tecnólogo en ADSO (Ficha 2996897)', '+57 312 411 7048', 'Etapa Lectiva / Proyecto Productivo', 'Activo', 'student123')
+    ''')
+
+    # Limpiar etiquetas antiguas del perfil de Administrador General si ya existían en BD
+    cursor.execute('''
+        UPDATE system_profiles
+        SET institution = 'Dirección General',
+            title = 'Administrador General',
+            department = 'Administración de Plataforma'
+        WHERE email = 'admin@talentlab.edu' AND institution LIKE '%Gobierno Global%'
     ''')
 
     conn.commit()
@@ -350,44 +364,111 @@ def init_db():
 
 init_db()
 
-# --- ALGORITMO PREDICTIVO DE RIESGO DE DESERCIÓN (ESTUDIO TÉCNICO 3.1.1) ---
-def compute_risk(attendance: float, academic_score: float, stratum: int, has_financial_aid: int):
-    prob = 0.05
-    factors = []
+# --- ALGORITMO PREDICTIVO MULTIFACTORIAL DE RIESGO DE DESERCIÓN (4 PILARES) ---
+def compute_risk_detailed(
+    attendance: float,
+    academic_score: float,
+    stratum: int,
+    has_financial_aid: int,
+    emotional_status: str = "Estable",
+    interview_score: Optional[float] = None
+):
+    """
+    Calcula el nivel de riesgo (alto, medio, bajo), la probabilidad (0.05 a 0.98),
+    el Factor Clave predominante y el desglose porcentual de las 4 dimensiones:
+    1. Asistencia / Fallas (SOFIA Plus / Reporte de inasistencias)
+    2. Rendimiento Académico (Juicios evaluativos y notas)
+    3. Vulnerabilidad Socioeconómica (Ficha de caracterización: Estrato y Auxilio)
+    4. Estado Emocional / Vocacional y Simulador IA (Bienestar + Filtro 1 RRHH)
+    """
+    candidates = []
 
+    # 1. Pilar de Asistencia e Inasistencias (Peso máx 0.35)
     if attendance < 70.0:
-        prob += 0.40
-        factors.append("Inasistencias Críticas (<70%)")
-    elif attendance < 80.0:
-        prob += 0.20
-        factors.append("Inasistencias Moderadas")
+        att_weight = 0.35
+        candidates.append((0.35, "Inasistencias Críticas (<70%)"))
+    elif attendance < 82.0:
+        att_weight = 0.18
+        candidates.append((0.18, "Fallas Recurrentes de Asistencia"))
+    else:
+        att_weight = 0.02
 
+    # 2. Pilar de Rendimiento Académico (Peso máx 0.32)
     if academic_score < 60.0:
-        prob += 0.35
-        factors.append("Rendimiento Académico Crítico (<60 pts)")
-    elif academic_score < 75.0:
-        prob += 0.15
-        factors.append("Dificultad en Asignaturas Clave")
+        acad_weight = 0.32
+        candidates.append((0.32, "Académico (Rezago Crítico <60 pts)"))
+    elif academic_score < 76.0:
+        acad_weight = 0.17
+        candidates.append((0.17, "Académico (Refuerzo en Competencias)"))
+    else:
+        acad_weight = 0.02
 
+    # 3. Pilar Socioeconómico y Sostenimiento (Peso máx 0.26)
     if stratum in [1, 2] and not has_financial_aid:
-        prob += 0.25
-        factors.append("Vulnerabilidad Económica (Estrato bajo sin auxilio)")
-    elif not has_financial_aid:
-        prob += 0.10
+        soc_weight = 0.26
+        candidates.append((0.26, "Económico (Transporte / Sin Auxilio)"))
+    elif stratum == 3 and not has_financial_aid:
+        soc_weight = 0.10
+        candidates.append((0.10, "Económico (Requiere Apoyo Bienestar)"))
+    else:
+        soc_weight = 0.02
 
-    risk_prob = min(max(prob, 0.05), 0.98)
+    # 4. Pilar Emocional, Vocacional y Simulador IA (Peso máx 0.32)
+    emo_clean = (emotional_status or "Estable").strip()
+    emo_weight = 0.02
+    emo_label = None
 
-    if risk_prob >= 0.75:
+    if "Crisis" in emo_clean or (interview_score is not None and interview_score < 50):
+        emo_weight = 0.32
+        emo_label = "Emocional (Alerta Psicosocial / Actitudinal)"
+    elif "Desmotivación" in emo_clean or (interview_score is not None and interview_score < 68):
+        emo_weight = 0.24
+        emo_label = "Personal (Desmotivación Vocacional)"
+    elif "Estrés" in emo_clean or "Tiempo" in emo_clean or "Trabajo" in emo_clean:
+        emo_weight = 0.22
+        emo_label = "Tiempo (Cruce Estudio y Trabajo)"
+
+    if emo_label:
+        candidates.append((emo_weight, emo_label))
+
+    raw_prob = att_weight + acad_weight + soc_weight + emo_weight
+    risk_prob = min(max(raw_prob, 0.08), 0.98)
+
+    # Ordenar factores de mayor a menor impacto para elegir el Factor Clave real
+    candidates.sort(key=lambda x: x[0], reverse=True)
+
+    if risk_prob >= 0.68:
         level = "alto"
-        factor_desc = factors[0] if factors else "Vulnerabilidad Múltiple"
-    elif risk_prob >= 0.40:
+        factor_desc = candidates[0][1] if candidates else "Vulnerabilidad Múltiple"
+    elif risk_prob >= 0.38:
         level = "medio"
-        factor_desc = factors[0] if factors else "Alerta Preventiva"
+        factor_desc = candidates[0][1] if candidates else "Alerta Preventiva"
     else:
         level = "bajo"
         factor_desc = "Desempeño Estable"
 
-    return level, round(risk_prob, 2), factor_desc
+    breakdown = {
+        "attendance_risk_pct": min(100, round((att_weight / 0.35) * 100)),
+        "academic_risk_pct": min(100, round((acad_weight / 0.32) * 100)),
+        "socioeconomic_risk_pct": min(100, round((soc_weight / 0.26) * 100)),
+        "emotional_risk_pct": min(100, round((emo_weight / 0.32) * 100)),
+    }
+
+    return level, round(risk_prob, 2), factor_desc, breakdown
+
+
+def compute_risk(
+    attendance: float,
+    academic_score: float,
+    stratum: int,
+    has_financial_aid: int,
+    emotional_status: str = "Estable",
+    interview_score: Optional[float] = None
+):
+    level, prob, factor_desc, _ = compute_risk_detailed(
+        attendance, academic_score, stratum, has_financial_aid, emotional_status, interview_score
+    )
+    return level, prob, factor_desc
 
 
 app = FastAPI(
@@ -435,9 +516,11 @@ class StudentCreateRequest(BaseModel):
     program: str
     institution: Optional[str] = "SENA - Centro de Tecnologías del Software"
     attendance: Optional[float] = 85.0
+    absences_count: Optional[int] = None
     academic_score: Optional[float] = 75.0
     stratum: Optional[int] = 2
     has_financial_aid: Optional[int] = 0
+    emotional_status: Optional[str] = "Estable"
     status: Optional[str] = "Activo"
 
 class StudentUpdateRequest(BaseModel):
@@ -446,10 +529,16 @@ class StudentUpdateRequest(BaseModel):
     program: Optional[str] = None
     institution: Optional[str] = None
     attendance: Optional[float] = None
+    absences_count: Optional[int] = None
     academic_score: Optional[float] = None
     stratum: Optional[int] = None
     has_financial_aid: Optional[int] = None
+    emotional_status: Optional[str] = None
     status: Optional[str] = None
+
+class StudentBatchImportRequest(BaseModel):
+    institution: str
+    rows: List[Dict[str, Any]]
 
 class SupportPlanCreate(BaseModel):
     title: str
@@ -634,10 +723,10 @@ def login(payload: LoginRequest):
             email=saved_profile["email"],
             role="super_admin",
             fullName=saved_profile["full_name"],
-            institution=saved_profile["institution"],
-            title=saved_profile["title"] or "Administrador General de Plataforma (Super Admin)",
+            institution=saved_profile["institution"] if "Gobierno Global" not in (saved_profile["institution"] or "") else "Dirección General",
+            title=saved_profile["title"] or "Administrador General",
             phone=saved_profile["phone"] or "+57 300 910 2030",
-            department=saved_profile["department"] or "Dirección de Tecnología & Gobierno Multi-Tenant"
+            department=saved_profile["department"] or "Administración de Plataforma"
         )
 
     if saved_profile and saved_profile["role"] in ("admin_tenant", "directivo") and role != "student":
@@ -656,10 +745,10 @@ def login(payload: LoginRequest):
             email=email if "@" in email else "admin@talentlab.edu",
             role="super_admin",
             fullName="Carlos Alberto Ramírez",
-            institution="TalentLab S.A.S. - Gobierno Global",
-            title="Administrador General de Plataforma (Super Admin)",
+            institution="Dirección General",
+            title="Administrador General",
             phone="+57 300 910 2030",
-            department="Dirección de Tecnología & Gobierno Multi-Tenant"
+            department="Administración de Plataforma"
         )
 
     elif role == "student":
@@ -827,14 +916,18 @@ def get_all_ecosystem_users(role_filter: Optional[str] = None, institution: Opti
             q = search.lower()
             if q not in s["full_name"].lower() and q not in s["email"].lower() and q not in s["institution"].lower() and q not in (s["title"] or "").lower():
                 continue
+        raw_inst = s["institution"] or "Dirección General"
+        clean_inst = "Dirección General" if "Gobierno Global" in raw_inst else raw_inst
+        raw_title = s["title"] or ("Administrador General" if s["role"] == "super_admin" else "Directivo Institucional")
+        clean_title = "Administrador General" if "Super Admin" in raw_title else raw_title
         staff_list.append({
             "uid": f"staff:{s['email']}",
             "email": s["email"],
             "name": s["full_name"],
             "role": s["role"],
-            "roleLabel": "Super Administrador" if s["role"] == "super_admin" else "Directivo / Coordinador",
-            "institution": s["institution"],
-            "titleOrProgram": s["title"] or "Directivo Institucional",
+            "roleLabel": "Administrador General" if s["role"] == "super_admin" else "Directivo Institucional",
+            "institution": clean_inst,
+            "titleOrProgram": clean_title,
             "phone": s["phone"] or "+57 300 000 0000",
             "department": s["department"] or "Dirección Académica",
             "status": s["status"] if "status" in s.keys() and s["status"] else "Activo"
@@ -1121,6 +1214,17 @@ def get_students(search: Optional[str] = None, risk: Optional[str] = None, insti
     students = []
     for r in rows:
         p_count = sum(pr["cnt"] for pr in plan_rows if (pr["student_email"] and pr["student_email"].lower() == r["email"].lower()) or pr["assigned_to"].lower() == r["name"].lower())
+        iv_sc = iv_map.get(r["email"].lower())
+        emo_st = r["emotional_status"] if "emotional_status" in r.keys() and r["emotional_status"] else "Estable"
+        abs_cnt = r["absences_count"] if "absences_count" in r.keys() and r["absences_count"] is not None else max(0, round((100.0 - r["attendance"]) / 4.0))
+        _, _, _, breakdown = compute_risk_detailed(
+            attendance=r["attendance"],
+            academic_score=r["academic_score"],
+            stratum=r["stratum"],
+            has_financial_aid=r["has_financial_aid"],
+            emotional_status=emo_st,
+            interview_score=iv_sc
+        )
         students.append({
             "id": r["id"],
             "name": r["name"],
@@ -1128,15 +1232,18 @@ def get_students(search: Optional[str] = None, risk: Optional[str] = None, insti
             "program": r["program"],
             "institution": r["institution"],
             "attendance": r["attendance"],
+            "absences_count": abs_cnt,
             "academic_score": r["academic_score"],
             "stratum": r["stratum"],
             "has_financial_aid": bool(r["has_financial_aid"]),
+            "emotional_status": emo_st,
             "risk": r["risk_level"],
             "risk_probability": f"{int(r['risk_probability'] * 100)}%",
             "factor": r["primary_factor"],
+            "risk_breakdown": breakdown,
             "status": r["status"],
             "score": f"{int(r['risk_probability'] * 100)}%",
-            "interview_score": iv_map.get(r["email"].lower()),
+            "interview_score": iv_sc,
             "plans_count": p_count
         })
 
@@ -1153,26 +1260,33 @@ def create_student(payload: StudentCreateRequest):
         conn.close()
         raise HTTPException(status_code=400, detail="El correo ya se encuentra registrado.")
 
+    att_val = payload.attendance if payload.attendance is not None else 85.0
+    abs_val = payload.absences_count if payload.absences_count is not None else max(0, round((100.0 - att_val) / 4.0))
+    emo_val = payload.emotional_status or "Estable"
+
     risk_level, risk_prob, primary_factor = compute_risk(
-        attendance=payload.attendance or 85.0,
+        attendance=att_val,
         academic_score=payload.academic_score or 75.0,
         stratum=payload.stratum or 2,
-        has_financial_aid=payload.has_financial_aid or 0
+        has_financial_aid=payload.has_financial_aid or 0,
+        emotional_status=emo_val
     )
 
     inst = payload.institution or "SENA - Centro de Tecnologías del Software"
 
     cursor.execute('''
-        INSERT INTO students (name, email, program, attendance, academic_score, stratum, has_financial_aid, risk_level, risk_probability, primary_factor, status, institution)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO students (name, email, program, attendance, absences_count, academic_score, stratum, has_financial_aid, emotional_status, risk_level, risk_probability, primary_factor, status, institution)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         payload.name.strip(),
         clean_email,
         payload.program,
-        payload.attendance,
+        att_val,
+        abs_val,
         payload.academic_score,
         payload.stratum,
         payload.has_financial_aid,
+        emo_val,
         risk_level,
         risk_prob,
         primary_factor,
@@ -1223,25 +1337,33 @@ def update_student(student_id: int, payload: StudentUpdateRequest):
     new_email = payload.email.strip().lower() if payload.email is not None else student["email"]
     new_program = payload.program if payload.program is not None else student["program"]
     new_attendance = payload.attendance if payload.attendance is not None else student["attendance"]
+    new_absences = payload.absences_count if payload.absences_count is not None else max(0, round((100.0 - new_attendance) / 4.0))
     new_score = payload.academic_score if payload.academic_score is not None else student["academic_score"]
     new_stratum = payload.stratum if payload.stratum is not None else student["stratum"]
     new_aid = payload.has_financial_aid if payload.has_financial_aid is not None else student["has_financial_aid"]
+    new_emo = payload.emotional_status if payload.emotional_status is not None else (student["emotional_status"] if "emotional_status" in student.keys() else "Estable")
     new_status = payload.status if payload.status is not None else student["status"]
     new_institution = payload.institution if payload.institution is not None else student["institution"]
+
+    cursor.execute("SELECT AVG(score) as avg_iv FROM interview_history WHERE LOWER(student_email) = ?", (new_email.lower(),))
+    iv_row = cursor.fetchone()
+    iv_avg = round(iv_row["avg_iv"]) if iv_row and iv_row["avg_iv"] is not None else None
 
     risk_level, risk_prob, primary_factor = compute_risk(
         attendance=new_attendance,
         academic_score=new_score,
         stratum=new_stratum,
-        has_financial_aid=new_aid
+        has_financial_aid=new_aid,
+        emotional_status=new_emo,
+        interview_score=iv_avg
     )
 
     cursor.execute('''
         UPDATE students 
-        SET name = ?, email = ?, program = ?, attendance = ?, academic_score = ?, stratum = ?, has_financial_aid = ?, risk_level = ?, risk_probability = ?, primary_factor = ?, status = ?, institution = ?
+        SET name = ?, email = ?, program = ?, attendance = ?, absences_count = ?, academic_score = ?, stratum = ?, has_financial_aid = ?, emotional_status = ?, risk_level = ?, risk_probability = ?, primary_factor = ?, status = ?, institution = ?
         WHERE id = ?
     ''', (
-        new_name, new_email, new_program, new_attendance, new_score, new_stratum, new_aid, risk_level, risk_prob, primary_factor, new_status, new_institution, student_id
+        new_name, new_email, new_program, new_attendance, new_absences, new_score, new_stratum, new_aid, new_emo, risk_level, risk_prob, primary_factor, new_status, new_institution, student_id
     ))
 
     cursor.execute('''
@@ -1254,7 +1376,7 @@ def update_student(student_id: int, payload: StudentUpdateRequest):
     conn.close()
 
     return {
-        "message": "Estudiante actualizado correctamente.",
+        "message": "Estudiante actualizado y Semáforo de Riesgo recalculado.",
         "student": {
             "id": student_id,
             "name": new_name,
@@ -1266,6 +1388,81 @@ def update_student(student_id: int, payload: StudentUpdateRequest):
             "factor": primary_factor,
             "status": new_status
         }
+    }
+
+@app.post("/api/students/import-batch")
+def import_students_batch(payload: StudentBatchImportRequest):
+    """
+    Permite al Directivo cargar o actualizar masivamente los datos de sus estudiantes
+    (Asistencia/Fallas desde SOFIA Plus, Notas Académicas, Caracterización Socioeconómica y Estado Emocional)
+    mediante archivo CSV, recalculando el Semáforo y Factor Clave automáticamente.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    created_count = 0
+    updated_count = 0
+
+    for row in payload.rows:
+        name = str(row.get("name") or row.get("nombre") or "").strip()
+        email = str(row.get("email") or row.get("correo") or "").strip().lower()
+        if not name or not email:
+            continue
+
+        program = str(row.get("program") or row.get("programa") or "Tecnólogo en ADSO").strip()
+        attendance = float(row.get("attendance") or row.get("asistencia") or 85.0)
+        absences = int(row.get("absences_count") or row.get("fallas") or max(0, round((100.0 - attendance) / 4.0)))
+        academic_score = float(row.get("academic_score") or row.get("promedio") or 75.0)
+        stratum = int(row.get("stratum") or row.get("estrato") or 2)
+        aid_raw = str(row.get("has_financial_aid") or row.get("auxilio") or "0").strip().lower()
+        has_aid = 1 if aid_raw in ("1", "si", "sí", "true", "yes") else 0
+        emo_status = str(row.get("emotional_status") or row.get("estado_emocional") or "Estable").strip()
+
+        risk_level, risk_prob, primary_factor = compute_risk(
+            attendance=attendance,
+            academic_score=academic_score,
+            stratum=stratum,
+            has_financial_aid=has_aid,
+            emotional_status=emo_status
+        )
+
+        cursor.execute("SELECT id FROM students WHERE LOWER(email) = ?", (email,))
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute('''
+                UPDATE students
+                SET name = ?, program = ?, attendance = ?, absences_count = ?, academic_score = ?,
+                    stratum = ?, has_financial_aid = ?, emotional_status = ?,
+                    risk_level = ?, risk_probability = ?, primary_factor = ?, institution = ?
+                WHERE id = ?
+            ''', (
+                name, program, attendance, absences, academic_score,
+                stratum, has_aid, emo_status,
+                risk_level, risk_prob, primary_factor, payload.institution, existing["id"]
+            ))
+            updated_count += 1
+        else:
+            cursor.execute('''
+                INSERT INTO students (name, email, program, attendance, absences_count, academic_score, stratum, has_financial_aid, emotional_status, risk_level, risk_probability, primary_factor, status, institution)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Activo', ?)
+            ''', (
+                name, email, program, attendance, absences, academic_score,
+                stratum, has_aid, emo_status,
+                risk_level, risk_prob, primary_factor, payload.institution
+            ))
+            cursor.execute('''
+                INSERT OR REPLACE INTO system_profiles (email, full_name, role, institution, title, phone, department, status, password)
+                VALUES (?, ?, 'student', ?, ?, '+57 312 000 0000', 'Formación Profesional', 'Activo', 'student123')
+            ''', (email, name, payload.institution, f"Aprendiz - {program}"))
+            created_count += 1
+
+    conn.commit()
+    conn.close()
+    return {
+        "message": f"Sincronización completada: {created_count} estudiantes nuevos y {updated_count} actualizados con Semáforo IA recalculado.",
+        "created": created_count,
+        "updated": updated_count
     }
 
 @app.delete("/api/students/{student_id}")
@@ -2565,15 +2762,17 @@ def conclude_interview(payload: InterviewConclusionRequest):
                 "Profundizar en patrones avanzados de escalabilidad y tolerancia a fallos"
             ]
 
-    # 5. Persistencia en SQLite
+    # 5. Persistencia en SQLite y recalibración automática del Semáforo de Deserción del estudiante
     try:
         conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
+        st_email = (payload.student_id or "estudiante@talentlab.edu").strip().lower()
         cursor.execute('''
             INSERT INTO interview_history (student_email, score, role_target, feedback, grammar, body_language, alignment)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (
-            payload.student_id or "estudiante@talentlab.co",
+            st_email,
             overall_score,
             payload.role_target or f"Proceso Integral (2 Filtros) - {prog_name}",
             executive_summary,
@@ -2581,6 +2780,33 @@ def conclude_interview(payload: InterviewConclusionRequest):
             body_lang_score,
             round((hr_sc + tech_sc) / 2)
         ))
+
+        cursor.execute("SELECT * FROM students WHERE LOWER(email) = ?", (st_email,))
+        st_row = cursor.fetchone()
+        if st_row:
+            if payload.is_hostile or hr_sc < 50:
+                new_emo = "Crisis Personal / Emocional"
+            elif overall_score < 68:
+                new_emo = "Desmotivación Vocacional"
+            elif overall_score >= 78:
+                new_emo = "Estable"
+            else:
+                new_emo = st_row["emotional_status"] if "emotional_status" in st_row.keys() and st_row["emotional_status"] else "Estable"
+
+            r_lvl, r_prob, r_factor = compute_risk(
+                attendance=st_row["attendance"],
+                academic_score=st_row["academic_score"],
+                stratum=st_row["stratum"],
+                has_financial_aid=st_row["has_financial_aid"],
+                emotional_status=new_emo,
+                interview_score=overall_score
+            )
+            cursor.execute('''
+                UPDATE students
+                SET emotional_status = ?, risk_level = ?, risk_probability = ?, primary_factor = ?
+                WHERE id = ?
+            ''', (new_emo, r_lvl, r_prob, r_factor, st_row["id"]))
+
         conn.commit()
         conn.close()
     except Exception as e:

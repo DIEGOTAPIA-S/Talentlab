@@ -9,6 +9,17 @@ const DEFAULT_INSTITUTIONS = [
   'Institución Universitaria Tecnológica de Antioquia'
 ];
 
+const selectStyle = {
+  backgroundColor: '#0f172a',
+  color: '#f8fafc',
+  colorScheme: 'dark'
+};
+
+const optionStyle = {
+  backgroundColor: '#0f172a',
+  color: '#f8fafc'
+};
+
 export default function AdminUsuarios() {
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
@@ -31,7 +42,7 @@ export default function AdminUsuarios() {
   const [recommendations, setRecommendations] = useState([]);
   const [toast, setToast] = useState(null);
 
-  // Modales CRUD
+  // Modales de Gestión
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -42,7 +53,7 @@ export default function AdminUsuarios() {
     name: '',
     email: '',
     institution: 'SENA - Centro de Tecnologías del Software',
-    title_or_program: 'Coordinador Académico y de Permanencia',
+    title_or_program: 'Coordinador Académico Institucional',
     phone: '+57 300 000 0000',
     department: 'Coordinación Académica',
     attendance: 88,
@@ -86,7 +97,7 @@ export default function AdminUsuarios() {
         setRecommendations(data.recommendations || []);
       }
     } catch (err) {
-      console.warn('Error cargando ecosistema de usuarios:', err);
+      console.warn('Error cargando usuarios:', err);
     } finally {
       setLoading(false);
     }
@@ -134,11 +145,11 @@ export default function AdminUsuarios() {
       });
       const data = await res.json();
       if (res.ok) {
-        notify(data.message || 'Usuario creado exitosamente.');
+        notify(data.message || 'Usuario registrado exitosamente.');
         setShowCreateModal(false);
         fetchEcosystem();
       } else {
-        alert(data.detail || 'No se pudo crear el usuario.');
+        alert(data.detail || 'No se pudo registrar el usuario.');
       }
     } catch (err) {
       alert('Error de conexión con el servidor backend.');
@@ -147,12 +158,16 @@ export default function AdminUsuarios() {
 
   const handleOpenEdit = (user) => {
     setEditingUser(user);
+    setCustomInstitution('');
+    const cleanInst = user.institution && user.institution.includes('Gobierno Global')
+      ? 'Dirección General'
+      : user.institution;
     setFormData({
       role: user.role,
       name: user.name,
       email: user.email,
-      institution: user.institution,
-      title_or_program: user.titleOrProgram || user.program || '',
+      institution: cleanInst,
+      title_or_program: (user.titleOrProgram || user.program || '').replace(/\s*\(Super Admin\)/i, ''),
       phone: user.phone || '+57 300 000 0000',
       department: user.department || 'Coordinación Académica',
       attendance: user.attendance ?? 85,
@@ -167,6 +182,11 @@ export default function AdminUsuarios() {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!editingUser) return;
+    const targetInst = formData.institution === '__otra__' ? customInstitution.trim() : formData.institution;
+    if (!targetInst) {
+      alert('Por favor especifica el nombre de la institución.');
+      return;
+    }
 
     try {
       let res;
@@ -178,7 +198,7 @@ export default function AdminUsuarios() {
             name: formData.name,
             email: formData.email,
             program: formData.title_or_program,
-            institution: formData.institution,
+            institution: targetInst,
             attendance: Number(formData.attendance),
             academic_score: Number(formData.academic_score),
             stratum: Number(formData.stratum),
@@ -193,7 +213,7 @@ export default function AdminUsuarios() {
           body: JSON.stringify({
             name: formData.name,
             role: formData.role,
-            institution: formData.institution,
+            institution: targetInst,
             title_or_program: formData.title_or_program,
             phone: formData.phone,
             department: formData.department,
@@ -203,7 +223,7 @@ export default function AdminUsuarios() {
       }
 
       if (res.ok) {
-        notify('Datos del usuario actualizados y sincronizados en tiempo real.');
+        notify('Datos del usuario actualizados correctamente.');
         setShowEditModal(false);
         setEditingUser(null);
         fetchEcosystem();
@@ -218,11 +238,11 @@ export default function AdminUsuarios() {
 
   const handleDeleteUser = async (user) => {
     if (user.email === 'admin@talentlab.edu') {
-      alert('La cuenta maestra del Super Administrador no puede ser eliminada.');
+      alert('La cuenta principal de Administrador General no puede ser eliminada.');
       return;
     }
     const label = user.role === 'student' ? 'estudiante' : 'directivo';
-    if (!window.confirm(`¿Confirmas eliminar al ${label} "${user.name}" (${user.institution})?\n\nEste cambio se reflejará de inmediato en el panel del Directivo de esa institución.`)) {
+    if (!window.confirm(`¿Confirmas eliminar al ${label} "${user.name}" (${user.institution})?`)) {
       return;
     }
 
@@ -234,7 +254,7 @@ export default function AdminUsuarios() {
         res = await fetch(`${API}/api/admin/users/staff/${encodeURIComponent(user.email)}`, { method: 'DELETE' });
       }
       if (res.ok) {
-        notify(`Usuario "${user.name}" eliminado del ecosistema.`);
+        notify(`Usuario "${user.name}" eliminado.`);
         fetchEcosystem();
       } else {
         const err = await res.json();
@@ -263,12 +283,11 @@ export default function AdminUsuarios() {
 
       <header className="panel-header">
         <div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: '999px', background: 'rgba(245, 158, 11, 0.16)', border: '1px solid rgba(245, 158, 11, 0.4)', color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginBottom: '8px' }}>
-            <i className="fa-solid fa-crown"></i> GOBIERNO GLOBAL MULTI-TENANT · SUPER ADMINISTRADOR
-          </div>
-          <h1 style={{ fontSize: '1.85rem', fontWeight: 700 }}>Gestión Total de Usuarios, Directivos y Estudiantes</h1>
-          <p style={{ color: 'var(--text-muted)' }}>
-            Control maestro del ecosistema: los usuarios que crees, edites o elimines aquí se sincronizan al instante con los Directivos de cada institución y con el acceso de Estudiantes.
+          <h1 style={{ fontSize: '1.85rem', fontWeight: 700, marginBottom: '6px' }}>
+            Gestión de Usuarios e Instituciones
+          </h1>
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+            Administración centralizada de directivos, coordinadores y estudiantes por institución educativa.
           </p>
         </div>
 
@@ -278,24 +297,24 @@ export default function AdminUsuarios() {
             style={{ borderColor: 'rgba(168, 85, 247, 0.5)', color: '#d8b4fe' }}
             onClick={() => openCreateModalWithRole('admin_tenant')}
           >
-            <i className="fa-solid fa-user-tie"></i> + Nuevo Directivo / Coordinador
+            <i className="fa-solid fa-user-tie"></i> Nuevo Directivo
           </button>
           <button
             className="btn btn-primary"
             onClick={() => openCreateModalWithRole('student')}
           >
-            <i className="fa-solid fa-user-plus"></i> + Nuevo Estudiante
+            <i className="fa-solid fa-user-plus"></i> Nuevo Estudiante
           </button>
         </div>
       </header>
 
-      {/* KPIs Globales del Ecosistema */}
+      {/* KPIs Globales */}
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '22px' }}>
         <div className="card kpi-card">
           <div>
             <span className="kpi-label">Total Usuarios</span>
             <div className="kpi-value">{kpis.totalUsers}</div>
-            <span style={{ fontSize: '0.74rem', color: 'var(--color-success)' }}>Activos en Base de Datos</span>
+            <span style={{ fontSize: '0.74rem', color: 'var(--color-success)' }}>Usuarios registrados</span>
           </div>
           <i className="fa-solid fa-users kpi-icon"></i>
         </div>
@@ -311,39 +330,41 @@ export default function AdminUsuarios() {
           <div>
             <span className="kpi-label">Estudiantes</span>
             <div className="kpi-value" style={{ color: '#38bdf8' }}>{kpis.totalStudents}</div>
-            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>En monitoreo IA</span>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>En seguimiento activo</span>
           </div>
           <i className="fa-solid fa-user-graduate kpi-icon"></i>
         </div>
         <div className="card kpi-card">
           <div>
-            <span className="kpi-label">Instituciones (Sedes)</span>
+            <span className="kpi-label">Instituciones</span>
             <div className="kpi-value" style={{ color: '#fbbf24' }}>{kpis.totalInstitutions}</div>
-            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Aislamiento por Sede</span>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Sedes vinculadas</span>
           </div>
           <i className="fa-solid fa-building-columns kpi-icon"></i>
         </div>
         <div className="card kpi-card">
           <div>
-            <span className="kpi-label">Riesgo Alto Global</span>
+            <span className="kpi-label">Riesgo Alto</span>
             <div className="kpi-value" style={{ color: '#f87171' }}>{kpis.highRiskTotal}</div>
-            <span style={{ fontSize: '0.74rem', color: '#f87171' }}>Requieren Plan Mejoramiento</span>
+            <span style={{ fontSize: '0.74rem', color: '#f87171' }}>Atención prioritaria</span>
           </div>
           <i className="fa-solid fa-triangle-exclamation kpi-icon"></i>
         </div>
       </div>
 
-      {/* Panel de Recomendaciones Estratégicas del Sistema (IA Governance) */}
+      {/* Panel de Recomendaciones del Sistema */}
       {recommendations.length > 0 && (
-        <div className="card" style={{ marginBottom: '24px', border: '1px solid rgba(245, 158, 11, 0.3)', background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95))' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px', color: '#fde68a' }}>
+        <div className="card" style={{ marginBottom: '24px', border: '1px solid rgba(245, 158, 11, 0.25)', background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95))' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <h3 style={{ fontSize: '1.02rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px', color: '#fde68a', margin: 0 }}>
               <i className="fa-solid fa-wand-magic-sparkles" style={{ color: '#f59e0b' }}></i>
-              Recomendaciones Inteligentes de Gobierno (Auditoría en Tiempo Real)
+              Recomendaciones del Sistema
             </h3>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Diagnóstico automático sobre las {kpis.totalInstitutions} instituciones</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              Análisis sobre {kpis.totalInstitutions} instituciones activas
+            </span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
             {recommendations.map((rec) => {
               const borderCol = rec.severity === 'alta' ? '#ef4444' : rec.severity === 'media' ? '#f59e0b' : '#10b981';
               return (
@@ -395,13 +416,13 @@ export default function AdminUsuarios() {
             className={`btn ${activeTab === 'all' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setActiveTab('all')}
           >
-            <i className="fa-solid fa-layer-group"></i> Todos los Usuarios ({staff.length + students.length})
+            <i className="fa-solid fa-layer-group"></i> Todos ({staff.length + students.length})
           </button>
           <button
             className={`btn ${activeTab === 'staff' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setActiveTab('staff')}
           >
-            <i className="fa-solid fa-user-tie"></i> Directivos y Admins ({staff.length})
+            <i className="fa-solid fa-user-tie"></i> Directivos ({staff.length})
           </button>
           <button
             className={`btn ${activeTab === 'students' ? 'btn-primary' : 'btn-secondary'}`}
@@ -420,13 +441,13 @@ export default function AdminUsuarios() {
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
           <select
             className="form-control"
-            style={{ width: 'auto', minWidth: '240px', marginBottom: 0 }}
+            style={{ ...selectStyle, width: 'auto', minWidth: '250px', marginBottom: 0 }}
             value={institutionFilter}
             onChange={(e) => setInstitutionFilter(e.target.value)}
           >
-            <option value="todas">🏛️ Todas las Instituciones ({allInstNames.length})</option>
+            <option value="todas" style={optionStyle}>Todas las Instituciones ({allInstNames.length})</option>
             {allInstNames.map(inst => (
-              <option key={inst} value={inst}>{inst}</option>
+              <option key={inst} value={inst} style={optionStyle}>{inst}</option>
             ))}
           </select>
 
@@ -441,16 +462,16 @@ export default function AdminUsuarios() {
         </div>
       </div>
 
-      {/* TABLA DE DIRECTIVOS / ADMINISTRATIVOS */}
+      {/* TABLA DE DIRECTIVOS / ADMINISTRADORES */}
       {(activeTab === 'all' || activeTab === 'staff') && (
         <div className="card" style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#d8b4fe' }}>
-                <i className="fa-solid fa-user-shield"></i> Cuerpo Directivo, Coordinadores y Administradores
+              <h3 style={{ fontSize: '1.12rem', fontWeight: 700, color: '#d8b4fe', margin: '0 0 4px 0' }}>
+                <i className="fa-solid fa-user-shield"></i> Directivos, Coordinadores y Administradores
               </h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Cada Directivo tiene acceso exclusivo a los estudiantes y Planes de Mejoramiento de su propia institución.
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                Cada Directivo gestiona y monitorea únicamente a los estudiantes de su institución asignada.
               </p>
             </div>
           </div>
@@ -460,72 +481,81 @@ export default function AdminUsuarios() {
               <thead>
                 <tr>
                   <th>Nombre y Correo</th>
-                  <th>Rol en Plataforma</th>
-                  <th>Institución Asignada (Sede)</th>
-                  <th>Cargo / Dependencia</th>
+                  <th>Rol</th>
+                  <th>Institución / Sede</th>
+                  <th>Cargo</th>
                   <th>Estado</th>
-                  <th>Acciones CRUD</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {staff.map(u => (
-                  <tr key={u.uid}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{u.name}</div>
-                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{u.email}</div>
-                    </td>
-                    <td>
-                      <span className="badge" style={{
-                        background: u.role === 'super_admin' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(168, 85, 247, 0.2)',
-                        color: u.role === 'super_admin' ? '#fbbf24' : '#d8b4fe',
-                        border: u.role === 'super_admin' ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(168, 85, 247, 0.4)'
-                      }}>
-                        {u.role === 'super_admin' ? '👑 Super Admin' : '🏛️ Directivo Sede'}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 500 }}>{u.institution}</td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '0.84rem' }}>{u.titleOrProgram}</td>
-                    <td>
-                      <span style={{ color: 'var(--color-success)', fontSize: '0.82rem', fontWeight: 600 }}>● {u.status}</span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '5px 10px', fontSize: '0.76rem' }}
-                          onClick={() => handleOpenEdit(u)}
-                        >
-                          <i className="fa-solid fa-pen"></i> Editar
-                        </button>
-                        {u.email !== 'admin@talentlab.edu' && (
+                {staff.map(u => {
+                  const cleanInst = u.institution && u.institution.includes('Gobierno Global')
+                    ? 'Dirección General'
+                    : u.institution;
+                  const cleanTitle = (u.titleOrProgram || '').replace(/\s*\(Super Admin\)/i, '');
+                  return (
+                    <tr key={u.uid}>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{u.name}</div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{u.email}</div>
+                      </td>
+                      <td>
+                        <span className="badge" style={{
+                          background: u.role === 'super_admin' ? 'rgba(245, 158, 11, 0.16)' : 'rgba(168, 85, 247, 0.16)',
+                          color: u.role === 'super_admin' ? '#fbbf24' : '#d8b4fe',
+                          border: u.role === 'super_admin' ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(168, 85, 247, 0.35)'
+                        }}>
+                          {u.role === 'super_admin' ? 'Administrador' : 'Directivo'}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 500 }}>{cleanInst}</td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '0.84rem' }}>{cleanTitle}</td>
+                      <td>
+                        <span style={{ color: u.status === 'Inactivo' ? '#f87171' : 'var(--color-success)', fontSize: '0.82rem', fontWeight: 600 }}>
+                          ● {u.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '8px' }}>
                           <button
                             className="btn btn-secondary"
-                            style={{ padding: '5px 10px', fontSize: '0.76rem', color: '#f87171', borderColor: 'rgba(239,68,68,0.35)' }}
-                            onClick={() => handleDeleteUser(u)}
+                            style={{ padding: '5px 10px', fontSize: '0.76rem' }}
+                            onClick={() => handleOpenEdit(u)}
                           >
-                            <i className="fa-solid fa-trash"></i>
+                            <i className="fa-solid fa-pen"></i> Editar
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {u.email !== 'admin@talentlab.edu' && (
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '5px 10px', fontSize: '0.76rem', color: '#f87171', borderColor: 'rgba(239,68,68,0.35)' }}
+                              onClick={() => handleDeleteUser(u)}
+                              title="Eliminar usuario"
+                            >
+                              <i className="fa-solid fa-trash"></i>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* TABLA DE ESTUDIANTES GLOBAL */}
+      {/* TABLA DE ESTUDIANTES */}
       {(activeTab === 'all' || activeTab === 'students') && (
         <div className="card" style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#38bdf8' }}>
-                <i className="fa-solid fa-user-graduate"></i> Estudiantes Registrados por Institución ({students.length})
+              <h3 style={{ fontSize: '1.12rem', fontWeight: 700, color: '#38bdf8', margin: '0 0 4px 0' }}>
+                <i className="fa-solid fa-user-graduate"></i> Estudiantes por Institución ({students.length})
               </h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Si creas, transfieres o eliminas un estudiante aquí, el Coordinador/Directivo de esa institución verá el cambio reflejado al instante.
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                Cualquier alta, cambio de sede o baja se refleja automáticamente en el panel del Directivo correspondiente.
               </p>
             </div>
           </div>
@@ -536,12 +566,12 @@ export default function AdminUsuarios() {
                 <tr>
                   <th>Estudiante</th>
                   <th>Institución / Sede</th>
-                  <th>Programa Formativo</th>
+                  <th>Programa</th>
                   <th>Asistencia / Promedio</th>
                   <th>Entrevista IA</th>
-                  <th>Planes Mejoramiento</th>
-                  <th>Riesgo IA</th>
-                  <th>Acciones CRUD</th>
+                  <th>Planes</th>
+                  <th>Riesgo</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -562,7 +592,7 @@ export default function AdminUsuarios() {
                           {st.interview_score}/100
                         </span>
                       ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Sin presentar</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Pendiente</span>
                       )}
                     </td>
                     <td>
@@ -612,11 +642,11 @@ export default function AdminUsuarios() {
           {institutions.map(inst => (
             <div key={inst.name} className="card" style={{ borderTop: '3px solid #a855f7' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                <h3 style={{ fontSize: '1.08rem', fontWeight: 700 }}>{inst.name}</h3>
+                <h3 style={{ fontSize: '1.08rem', fontWeight: 700, margin: 0 }}>{inst.name}</h3>
                 <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>Activa</span>
               </div>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
-                <strong>Directivo(s) a cargo:</strong> {inst.directivesNames.length > 0 ? inst.directivesNames.join(', ') : 'Sin Coordinador asignado'}
+                <strong>Directivo a cargo:</strong> {inst.directivesNames.length > 0 ? inst.directivesNames.join(', ') : 'Sin Coordinador asignado'}
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
                 <div style={{ padding: '10px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', textAlign: 'center' }}>
@@ -638,14 +668,14 @@ export default function AdminUsuarios() {
                   style={{ flex: 1, fontSize: '0.78rem' }}
                   onClick={() => { setInstitutionFilter(inst.name); setActiveTab('students'); }}
                 >
-                  Ver Estudiantes de esta Sede
+                  Ver Estudiantes
                 </button>
                 <button
                   className="btn btn-primary"
                   style={{ fontSize: '0.78rem' }}
                   onClick={() => openCreateModalWithRole('student', inst.name)}
                 >
-                  + Matricular Aquí
+                  + Matricular
                 </button>
               </div>
             </div>
@@ -653,7 +683,7 @@ export default function AdminUsuarios() {
         </div>
       )}
 
-      {/* MODAL CREAR USUARIO (DIRECTIVO O ESTUDIANTE) */}
+      {/* MODAL CREAR USUARIO */}
       {showCreateModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 2000,
@@ -661,17 +691,18 @@ export default function AdminUsuarios() {
         }}>
           <div className="card" style={{ width: '100%', maxWidth: '580px', maxHeight: '90vh', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.15)' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '6px' }}>
-              <i className="fa-solid fa-user-plus" style={{ color: 'var(--primary)' }}></i> Registrar Nuevo Usuario en el Ecosistema
+              <i className="fa-solid fa-user-plus" style={{ color: 'var(--primary)' }}></i> Registrar Nuevo Usuario
             </h3>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '18px' }}>
-              El usuario creado quedará inmediatamente habilitado en la base de datos e integrado con su institución.
+              El usuario quedará habilitado de inmediato y vinculado a la institución seleccionada.
             </p>
 
             <form onSubmit={handleCreateSubmit}>
               <div className="form-group">
-                <label>Tipo de Perfil / Rol</label>
+                <label>Tipo de Perfil</label>
                 <select
                   className="form-control"
+                  style={selectStyle}
                   value={formData.role}
                   onChange={(e) => {
                     const r = e.target.value;
@@ -682,9 +713,9 @@ export default function AdminUsuarios() {
                     });
                   }}
                 >
-                  <option value="admin_tenant">🏛️ Directivo / Coordinador Institucional (Rector, Coordinador, Bienestar)</option>
-                  <option value="student">🎓 Estudiante / Aprendiz en Formación</option>
-                  <option value="super_admin">👑 Super Administrador Global</option>
+                  <option value="admin_tenant" style={optionStyle}>Directivo / Coordinador Institucional</option>
+                  <option value="student" style={optionStyle}>Estudiante / Aprendiz</option>
+                  <option value="super_admin" style={optionStyle}>Administrador General</option>
                 </select>
               </div>
 
@@ -701,7 +732,7 @@ export default function AdminUsuarios() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Correo Institucional (Login)</label>
+                  <label>Correo Institucional</label>
                   <input
                     type="email"
                     className="form-control"
@@ -714,16 +745,17 @@ export default function AdminUsuarios() {
               </div>
 
               <div className="form-group">
-                <label>Institución Educativa Asignada (Sede)</label>
+                <label>Institución Educativa (Sede)</label>
                 <select
                   className="form-control"
+                  style={selectStyle}
                   value={formData.institution}
                   onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
                 >
                   {allInstNames.map(inst => (
-                    <option key={inst} value={inst}>{inst}</option>
+                    <option key={inst} value={inst} style={optionStyle}>{inst}</option>
                   ))}
-                  <option value="__otra__">+ Registrar Nueva Institución Educativa...</option>
+                  <option value="__otra__" style={optionStyle}>+ Registrar Nueva Institución Educativa...</option>
                 </select>
               </div>
 
@@ -747,15 +779,16 @@ export default function AdminUsuarios() {
                     <label>Programa de Formación</label>
                     <select
                       className="form-control"
+                      style={selectStyle}
                       value={formData.title_or_program}
                       onChange={(e) => setFormData({ ...formData, title_or_program: e.target.value })}
                     >
-                      <option value="Tecnólogo en ADSO">Tecnólogo en ADSO</option>
-                      <option value="Desarrollo de Software">Desarrollo de Software</option>
-                      <option value="Ingeniería de Sistemas">Ingeniería de Sistemas</option>
-                      <option value="Tecnólogo en Gestión Empresarial">Tecnólogo en Gestión Empresarial</option>
-                      <option value="Tecnólogo en Contabilidad y Finanzas">Tecnólogo en Contabilidad y Finanzas</option>
-                      <option value="Diseño Gráfico Digital">Diseño Gráfico Digital</option>
+                      <option value="Tecnólogo en ADSO" style={optionStyle}>Tecnólogo en ADSO</option>
+                      <option value="Desarrollo de Software" style={optionStyle}>Desarrollo de Software</option>
+                      <option value="Ingeniería de Sistemas" style={optionStyle}>Ingeniería de Sistemas</option>
+                      <option value="Tecnólogo en Gestión Empresarial" style={optionStyle}>Tecnólogo en Gestión Empresarial</option>
+                      <option value="Tecnólogo en Contabilidad y Finanzas" style={optionStyle}>Tecnólogo en Contabilidad y Finanzas</option>
+                      <option value="Diseño Gráfico Digital" style={optionStyle}>Diseño Gráfico Digital</option>
                     </select>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
@@ -785,10 +818,13 @@ export default function AdminUsuarios() {
                       <label>Estrato</label>
                       <select
                         className="form-control"
+                        style={selectStyle}
                         value={formData.stratum}
                         onChange={(e) => setFormData({ ...formData, stratum: Number(e.target.value) })}
                       >
-                        {[1, 2, 3, 4, 5, 6].map(s => <option key={s} value={s}>Estrato {s}</option>)}
+                        {[1, 2, 3, 4, 5, 6].map(s => (
+                          <option key={s} value={s} style={optionStyle}>Estrato {s}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -796,7 +832,7 @@ export default function AdminUsuarios() {
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
-                    <label>Cargo Directivo (Rector, Coordinador, etc.)</label>
+                    <label>Cargo Directivo</label>
                     <input
                       type="text"
                       className="form-control"
@@ -854,26 +890,60 @@ export default function AdminUsuarios() {
               </div>
 
               <div className="form-group">
-                <label>Institución Asignada (Transferir de Sede)</label>
+                <label>Institución Asignada (Sede)</label>
                 <select
                   className="form-control"
+                  style={selectStyle}
                   value={formData.institution}
                   onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
                 >
+                  {editingUser.role === 'super_admin' && (
+                    <option value="Dirección General" style={optionStyle}>Dirección General</option>
+                  )}
                   {allInstNames.map(inst => (
-                    <option key={inst} value={inst}>{inst}</option>
+                    <option key={inst} value={inst} style={optionStyle}>{inst}</option>
                   ))}
+                  <option value="__otra__" style={optionStyle}>+ Registrar Nueva Institución Educativa...</option>
                 </select>
               </div>
 
-              <div className="form-group">
-                <label>{editingUser.role === 'student' ? 'Programa de Formación' : 'Cargo Institucional'}</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={formData.title_or_program}
-                  onChange={(e) => setFormData({ ...formData, title_or_program: e.target.value })}
-                />
+              {formData.institution === '__otra__' && (
+                <div className="form-group">
+                  <label>Nombre de la Nueva Institución</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    required
+                    placeholder="Ej. SENA - Centro de Servicios de Salud"
+                    value={customInstitution}
+                    onChange={(e) => setCustomInstitution(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label>{editingUser.role === 'student' ? 'Programa de Formación' : 'Cargo Institucional'}</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={formData.title_or_program}
+                    onChange={(e) => setFormData({ ...formData, title_or_program: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Estado</label>
+                  <select
+                    className="form-control"
+                    style={selectStyle}
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  >
+                    <option value="Activo" style={optionStyle}>Activo</option>
+                    <option value="Riesgo" style={optionStyle}>En Riesgo</option>
+                    <option value="Inactivo" style={optionStyle}>Inactivo</option>
+                  </select>
+                </div>
               </div>
 
               {editingUser.role === 'student' && (

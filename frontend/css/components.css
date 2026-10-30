@@ -73,6 +73,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-width: 0;
 }
 
 .form-label {
@@ -83,20 +84,40 @@
 }
 
 .form-control {
-    background: rgba(255, 255, 255, 0.04);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    background: rgba(15, 23, 42, 0.75);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
-    padding: 12px 16px;
+    padding: 11px 14px;
     color: var(--text-main);
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     outline: none;
     transition: var(--transition-normal);
+    color-scheme: dark;
 }
 
 .form-control:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-glow);
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.95);
+}
+
+select,
+select.form-control {
+    color-scheme: dark;
+    background-color: #0f172a;
+    color: #f8fafc;
+    cursor: pointer;
+}
+
+select option,
+select.form-control option {
+    background-color: #0f172a;
+    color: #f8fafc;
+    padding: 10px 14px;
 }
 
 /* Status Badges (Semáforos) */
