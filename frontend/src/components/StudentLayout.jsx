@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
+import TalentLabLogo from './TalentLabLogo';
 
 export default function StudentLayout() {
   const location = useLocation();
@@ -21,8 +22,9 @@ export default function StudentLayout() {
       {/* Sidebar del Estudiante */}
       <aside className="sidebar">
         <div>
-          <Link to="/simulador" className="sidebar-brand">
-            <i className="fa-solid fa-flask-bubble"></i> Talent<span>Lab</span>
+          <Link to="/simulador" className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <TalentLabLogo size={34} />
+            <span>Talent<span>Lab</span></span>
           </Link>
 
           {/* Badge del Perfil de Estudiante */}

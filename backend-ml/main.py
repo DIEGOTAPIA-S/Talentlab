@@ -149,6 +149,23 @@ def init_db():
         )
     ''')
 
+    # 7. Tabla de Instituciones Educativas y sus Programas Formativos
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS institutions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            code_nit TEXT DEFAULT '',
+            city TEXT DEFAULT 'Medellín, Antioquia',
+            address TEXT DEFAULT '',
+            contact_name TEXT DEFAULT '',
+            contact_email TEXT DEFAULT '',
+            contact_phone TEXT DEFAULT '',
+            programs_json TEXT DEFAULT '[]',
+            status TEXT DEFAULT 'Activa',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # Migraciones idempotentes (bases ya existentes)
     def _add_column(table, column, ddl):
         cols = [c[1] for c in cursor.execute(f'PRAGMA table_info({table})').fetchall()]
@@ -357,6 +374,51 @@ def init_db():
             department = 'Administración de Plataforma'
         WHERE email = 'admin@talentlab.edu' AND institution LIKE '%Gobierno Global%'
     ''')
+
+    # Semilla inicial de Instituciones Educativas con sus contactos y programas formativos
+    cursor.execute('SELECT COUNT(*) FROM institutions')
+    if cursor.fetchone()[0] == 0:
+        initial_institutions = [
+            (
+                "SENA - Centro de Tecnologías del Software",
+                "NIT 899.999.034-1 · Cód. 9204",
+                "Medellín, Antioquia",
+                "Calle 51 # 57-70, Complejo Central",
+                "Patricia Gómez Salazar",
+                "director@talentlab.edu",
+                "+57 (601) 546-1500",
+                json.dumps(["Tecnólogo en ADSO", "Desarrollo de Software", "Diseño Gráfico Digital"], ensure_ascii=False),
+                "Activa"
+            ),
+            (
+                "SENA - Centro de Comercio y Servicios",
+                "NIT 899.999.034-2 · Cód. 9302",
+                "Medellín, Antioquia",
+                "Av. Ferrocarril # 51-20",
+                "Dr. Hernán Darío Mejía",
+                "rector@sena-cs.edu.co",
+                "+57 (604) 576-0000",
+                json.dumps(["Tecnólogo en Gestión Empresarial", "Tecnólogo en Contabilidad y Finanzas"], ensure_ascii=False),
+                "Activa"
+            ),
+            (
+                "Institución Universitaria Tecnológica de Antioquia",
+                "NIT 890.905.419-6 · SNIES 2812",
+                "Medellín, Antioquia",
+                "Calle 78B # 72A-220, Campus Robledo",
+                "Dra. Claudia Marcela Vélez",
+                "coordinador@udea-tec.edu.co",
+                "+57 (604) 444-3700",
+                json.dumps(["Ingeniería de Sistemas", "Diseño Gráfico Digital"], ensure_ascii=False),
+                "Activa"
+            )
+        ]
+        cursor.executemany('''
+            INSERT INTO institutions (
+                name, code_nit, city, address, contact_name, contact_email, contact_phone, programs_json, status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', initial_institutions)
 
     conn.commit()
     conn.close()
@@ -592,6 +654,28 @@ class AdminUserUpdateRequest(BaseModel):
     academic_score: Optional[float] = None
     stratum: Optional[int] = None
     has_financial_aid: Optional[int] = None
+    status: Optional[str] = None
+
+class InstitutionCreateRequest(BaseModel):
+    name: str
+    code_nit: Optional[str] = ""
+    city: Optional[str] = "Medellín, Antioquia"
+    address: Optional[str] = ""
+    contact_name: Optional[str] = ""
+    contact_email: Optional[str] = ""
+    contact_phone: Optional[str] = ""
+    programs: Optional[List[str]] = []
+    status: Optional[str] = "Activa"
+
+class InstitutionUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    code_nit: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    programs: Optional[List[str]] = None
     status: Optional[str] = None
 
 class MentorshipMatchRequest(BaseModel):
@@ -906,6 +990,29 @@ def get_all_ecosystem_users(role_filter: Optional[str] = None, institution: Opti
 
     cursor.execute("SELECT student_email, assigned_to, COUNT(*) as plan_count FROM support_plans GROUP BY student_email, assigned_to")
     plan_rows = cursor.fetchall()
+
+    # Asegurar que toda institución presente en staff o students exista también en la tabla institutions
+    distinct_user_insts = sorted(
+        ({s["institution"] for s in staff_rows if s["role"] != "super_admin" and s["institution"]} | {st["institution"] for st in student_rows if st["institution"]})
+    )
+    for d_inst in distinct_user_insts:
+        if "Gobierno Global" in d_inst or d_inst == "Dirección General":
+            continue
+        cursor.execute("SELECT id FROM institutions WHERE name = ?", (d_inst,))
+        if not cursor.fetchone():
+            inst_progs = sorted({st["program"] for st in student_rows if st["institution"] == d_inst and st["program"]})
+            inst_dirs = [s for s in staff_rows if s["institution"] == d_inst and s["role"] == "admin_tenant"]
+            c_name = inst_dirs[0]["full_name"] if inst_dirs else ""
+            c_email = inst_dirs[0]["email"] if inst_dirs else ""
+            c_phone = inst_dirs[0]["phone"] if inst_dirs else "+57 (604) 444-0000"
+            cursor.execute('''
+                INSERT INTO institutions (name, code_nit, city, address, contact_name, contact_email, contact_phone, programs_json, status)
+                VALUES (?, ?, 'Medellín, Antioquia', 'Sede Principal', ?, ?, ?, ?, 'Activa')
+            ''', (d_inst, "NIT En Registro", c_name, c_email, c_phone, json.dumps(inst_progs, ensure_ascii=False)))
+    conn.commit()
+
+    cursor.execute("SELECT * FROM institutions ORDER BY id ASC")
+    inst_db_rows = cursor.fetchall()
     conn.close()
 
     staff_list = []
@@ -966,19 +1073,70 @@ def get_all_ecosystem_users(role_filter: Optional[str] = None, institution: Opti
             "status": st["status"]
         })
 
-    # Consolidar instituciones del ecosistema
-    all_insts = sorted(
-        ({s["institution"] for s in staff_rows if s["role"] != "super_admin"} | {st["institution"] for st in student_rows})
-    )
+    # Consolidar instituciones del ecosistema desde la tabla institutions + métricas en vivo
+    all_insts = [r["name"] for r in inst_db_rows]
     institutions_summary = []
-    for inst in all_insts:
-        inst_staff = [s for s in staff_rows if s["institution"] == inst and s["role"] == "admin_tenant"]
-        inst_students = [st for st in student_rows if st["institution"] == inst]
+    for ir in inst_db_rows:
+        inst_name = ir["name"]
+        if institution and institution != "todas" and inst_name != institution:
+            continue
+        if search:
+            q = search.lower()
+            raw_progs = ir["programs_json"] or "[]"
+            if (
+                q not in inst_name.lower()
+                and q not in (ir["code_nit"] or "").lower()
+                and q not in (ir["city"] or "").lower()
+                and q not in (ir["contact_name"] or "").lower()
+                and q not in raw_progs.lower()
+            ):
+                # Si hay filtro de búsqueda que no coincide con la institución ni sus programas, omitir en vista filtrada
+                pass
+
+        inst_staff = [s for s in staff_rows if s["institution"] == inst_name and s["role"] == "admin_tenant"]
+        inst_students = [st for st in student_rows if st["institution"] == inst_name]
         high_risk = [st for st in inst_students if st["risk_level"] == "alto"]
+
+        try:
+            saved_programs = json.loads(ir["programs_json"] or "[]")
+            if not isinstance(saved_programs, list):
+                saved_programs = []
+        except Exception:
+            saved_programs = []
+
+        # Unir programas configurados en la institución con programas que tengan alumnos matriculados
+        active_student_programs = [st["program"] for st in inst_students if st["program"]]
+        merged_programs = list(dict.fromkeys([p.strip() for p in saved_programs if p and p.strip()] + active_student_programs))
+
+        programs_breakdown = []
+        for prog_name in merged_programs:
+            prog_students = [st for st in inst_students if st["program"] == prog_name]
+            prog_high_risk = [st for st in prog_students if st["risk_level"] == "alto"]
+            programs_breakdown.append({
+                "name": prog_name,
+                "studentsCount": len(prog_students),
+                "highRiskCount": len(prog_high_risk)
+            })
+
+        directives_names = [s["full_name"] for s in inst_staff]
+        contact_name = ir["contact_name"] or (directives_names[0] if directives_names else "Sin asignar")
+        contact_email = ir["contact_email"] or (inst_staff[0]["email"] if inst_staff else "")
+        contact_phone = ir["contact_phone"] or (inst_staff[0]["phone"] if inst_staff else "")
+
         institutions_summary.append({
-            "name": inst,
+            "id": ir["id"],
+            "name": inst_name,
+            "code_nit": ir["code_nit"] or "NIT Institucional",
+            "city": ir["city"] or "Medellín, Antioquia",
+            "address": ir["address"] or "Sede Principal",
+            "contact_name": contact_name,
+            "contact_email": contact_email,
+            "contact_phone": contact_phone,
+            "status": ir["status"] or "Activa",
+            "programs": merged_programs,
+            "programsBreakdown": programs_breakdown,
             "directivesCount": len(inst_staff),
-            "directivesNames": [s["full_name"] for s in inst_staff],
+            "directivesNames": directives_names,
             "studentsCount": len(inst_students),
             "highRiskCount": len(high_risk),
             "avgAcademic": round(sum(st["academic_score"] for st in inst_students) / len(inst_students), 1) if inst_students else 0
@@ -1080,6 +1238,11 @@ def admin_create_user(payload: AdminUserCreateRequest):
             payload.status or "Activo",
             payload.password or "director123"
         ))
+        if role_db == "admin_tenant" and payload.institution.strip():
+            cursor.execute('''
+                INSERT OR IGNORE INTO institutions (name, code_nit, city, address, contact_name, contact_email, contact_phone, programs_json, status)
+                VALUES (?, 'NIT En Registro', 'Medellín, Antioquia', 'Sede Principal', ?, ?, ?, '[]', 'Activa')
+            ''', (payload.institution.strip(), payload.name.strip(), clean_email, payload.phone or "+57 (601) 546-1500"))
         conn.commit()
         conn.close()
         return {"message": f"Perfil administrativo ({payload.name}) creado exitosamente para {payload.institution}."}
@@ -1128,6 +1291,25 @@ def admin_create_user(payload: AdminUserCreateRequest):
             payload.password or "student123"
         ))
 
+        # Sincronizar institución y programa en la tabla institutions
+        inst_clean = payload.institution.strip()
+        prog_clean = payload.title_or_program.strip() or "Tecnólogo en ADSO"
+        cursor.execute("SELECT id, programs_json FROM institutions WHERE name = ?", (inst_clean,))
+        inst_row = cursor.fetchone()
+        if not inst_row:
+            cursor.execute('''
+                INSERT INTO institutions (name, code_nit, city, address, contact_name, contact_email, contact_phone, programs_json, status)
+                VALUES (?, 'NIT En Registro', 'Medellín, Antioquia', 'Sede Principal', '', '', '', ?, 'Activa')
+            ''', (inst_clean, json.dumps([prog_clean], ensure_ascii=False)))
+        else:
+            try:
+                progs = json.loads(inst_row[1] or "[]")
+            except Exception:
+                progs = []
+            if prog_clean not in progs:
+                progs.append(prog_clean)
+                cursor.execute("UPDATE institutions SET programs_json = ? WHERE id = ?", (json.dumps(progs, ensure_ascii=False), inst_row[0]))
+
         conn.commit()
         conn.close()
         return {"message": f"Estudiante {payload.name} creado y vinculado a {payload.institution}."}
@@ -1172,6 +1354,108 @@ def admin_delete_staff(email: str):
     conn.commit()
     conn.close()
     return {"message": "Directivo eliminado del sistema exitosamente."}
+
+# 3.1 GESTIÓN CRUD DE INSTITUCIONES EDUCATIVAS Y PROGRAMAS FORMATIVOS
+@app.post("/api/admin/institutions", status_code=201)
+def admin_create_institution(payload: InstitutionCreateRequest):
+    clean_name = payload.name.strip()
+    if not clean_name:
+        raise HTTPException(status_code=400, detail="El nombre de la institución es obligatorio.")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM institutions WHERE LOWER(name) = ?", (clean_name.lower(),))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="Ya existe una institución registrada con ese nombre.")
+
+    clean_programs = list(dict.fromkeys([p.strip() for p in (payload.programs or []) if p and p.strip()]))
+    cursor.execute('''
+        INSERT INTO institutions (
+            name, code_nit, city, address, contact_name, contact_email, contact_phone, programs_json, status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        clean_name,
+        (payload.code_nit or "NIT En Registro").strip(),
+        (payload.city or "Medellín, Antioquia").strip(),
+        (payload.address or "Sede Principal").strip(),
+        (payload.contact_name or "").strip(),
+        (payload.contact_email or "").strip(),
+        (payload.contact_phone or "").strip(),
+        json.dumps(clean_programs, ensure_ascii=False),
+        payload.status or "Activa"
+    ))
+    conn.commit()
+    new_id = cursor.lastrowid
+    conn.close()
+    return {"id": new_id, "message": f"Institución '{clean_name}' creada exitosamente con {len(clean_programs)} programa(s)."}
+
+@app.put("/api/admin/institutions/{inst_id}")
+def admin_update_institution(inst_id: int, payload: InstitutionUpdateRequest):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM institutions WHERE id = ?", (inst_id,))
+    inst = cursor.fetchone()
+    if not inst:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Institución no encontrada.")
+
+    old_name = inst["name"]
+    new_name = payload.name.strip() if payload.name and payload.name.strip() else old_name
+    new_nit = payload.code_nit.strip() if payload.code_nit is not None else inst["code_nit"]
+    new_city = payload.city.strip() if payload.city is not None else inst["city"]
+    new_addr = payload.address.strip() if payload.address is not None else inst["address"]
+    new_cname = payload.contact_name.strip() if payload.contact_name is not None else inst["contact_name"]
+    new_cemail = payload.contact_email.strip() if payload.contact_email is not None else inst["contact_email"]
+    new_cphone = payload.contact_phone.strip() if payload.contact_phone is not None else inst["contact_phone"]
+    new_status = payload.status if payload.status is not None else inst["status"]
+
+    if payload.programs is not None:
+        clean_progs = list(dict.fromkeys([p.strip() for p in payload.programs if p and p.strip()]))
+        new_programs_json = json.dumps(clean_progs, ensure_ascii=False)
+    else:
+        new_programs_json = inst["programs_json"]
+
+    cursor.execute('''
+        UPDATE institutions
+        SET name = ?, code_nit = ?, city = ?, address = ?, contact_name = ?, contact_email = ?, contact_phone = ?, programs_json = ?, status = ?
+        WHERE id = ?
+    ''', (new_name, new_nit, new_city, new_addr, new_cname, new_cemail, new_cphone, new_programs_json, new_status, inst_id))
+
+    # Si cambió el nombre de la institución, actualizar en cascada a estudiantes, perfiles y planes
+    if new_name != old_name:
+        cursor.execute("UPDATE students SET institution = ? WHERE institution = ?", (new_name, old_name))
+        cursor.execute("UPDATE system_profiles SET institution = ? WHERE institution = ?", (new_name, old_name))
+        cursor.execute("UPDATE support_plans SET institution = ? WHERE institution = ?", (new_name, old_name))
+
+    conn.commit()
+    conn.close()
+    return {"message": f"Institución '{new_name}' actualizada correctamente."}
+
+@app.delete("/api/admin/institutions/{inst_id}")
+def admin_delete_institution(inst_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM institutions WHERE id = ?", (inst_id,))
+    inst = cursor.fetchone()
+    if not inst:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Institución no encontrada.")
+
+    inst_name = inst["name"]
+    # Eliminar la institución y los usuarios/estudiantes asociados a dicha sede para evitar que se re-cree automáticamente
+    cursor.execute("DELETE FROM institutions WHERE id = ?", (inst_id,))
+    cursor.execute("DELETE FROM students WHERE institution = ?", (inst_name,))
+    cursor.execute("DELETE FROM system_profiles WHERE institution = ? AND role <> 'super_admin'", (inst_name,))
+    cursor.execute("DELETE FROM support_plans WHERE institution = ?", (inst_name,))
+    conn.commit()
+    conn.close()
+    return {"message": f"Institución '{inst_name}' y sus registros asociados eliminados del sistema."}
 
 # 4. GESTIÓN CRUD DE ESTUDIANTES (FILTRADO POR INSTITUCIÓN PARA DIRECTIVOS Y GLOBAL PARA ADMIN)
 @app.get("/api/students")

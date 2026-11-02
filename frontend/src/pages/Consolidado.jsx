@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { generateInstitutionalPdfReport } from '../utils/pdfReportGenerator';
 
 const API = 'http://localhost:8000';
 
@@ -87,9 +88,42 @@ export default function Consolidado() {
             Vista agregada por institución y por programa de formación: riesgo de deserción, desempeño académico y resultados del simulador de entrevistas.
           </p>
         </div>
-        <button className="btn btn-primary" onClick={exportCSV} disabled={!data}>
-          <i className="fa-solid fa-file-csv"></i> Exportar CSV
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-primary"
+            disabled={!data}
+            onClick={() =>
+              generateInstitutionalPdfReport({
+                institution:
+                  session.role === 'admin_tenant'
+                    ? session.institution
+                    : institution === 'todas'
+                    ? 'Consolidado Multi-Institución'
+                    : institution,
+                directorName: (session.fullName || 'Coordinación Académica').replace(/^Dra\.\s*/i, ''),
+                directorTitle: session.title || (session.role === 'super_admin' ? 'Administrador General' : 'Directivo Institucional'),
+                students: (data?.students || []).map(s => ({
+                  ...s,
+                  interview_score: s.interviewScore,
+                  score: s.risk === 'alto' ? '78%' : s.risk === 'medio' ? '52%' : '16%',
+                  factor:
+                    s.risk === 'alto'
+                      ? s.attendance < 70
+                        ? 'Inasistencias Críticas (<70%)'
+                        : 'Académico / Económico'
+                      : s.risk === 'medio'
+                      ? 'Alerta Preventiva'
+                      : 'Desempeño Estable'
+                }))
+              })
+            }
+          >
+            <i className="fa-solid fa-file-pdf"></i> Descargar Informe PDF
+          </button>
+          <button className="btn btn-secondary" onClick={exportCSV} disabled={!data}>
+            <i className="fa-solid fa-file-csv"></i> Exportar CSV
+          </button>
+        </div>
       </header>
 
       {error && (

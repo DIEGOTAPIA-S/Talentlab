@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { generateInstitutionalPdfReport } from '../utils/pdfReportGenerator';
 
 const EMOTIONAL_OPTIONS = [
   'Estable',
@@ -373,6 +374,22 @@ export default function Alumnos() {
             title="Cargar archivo CSV con fallas, notas y bienestar desde SOFIA Plus / LMS"
           >
             <i className="fa-solid fa-file-csv"></i> Importar CSV
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() =>
+              generateInstitutionalPdfReport({
+                institution: isSuperAdmin ? 'Todas las Instituciones (Consolidado)' : myInstitution,
+                directorName: (session.fullName || 'Coordinación Académica').replace(/^Dra\.\s*/i, ''),
+                directorTitle: session.title || (isSuperAdmin ? 'Administrador General' : 'Directivo Institucional'),
+                students: filteredStudents
+              })
+            }
+            title="Generar plantilla PDF con estadísticas, porcentajes y listado nominal"
+          >
+            <i className="fa-solid fa-file-pdf" style={{ color: '#f87171' }}></i> Informe PDF
           </button>
 
           <button className="btn btn-primary" onClick={() => { setSelectedAlumno(null); setShowCreateModal(true); }}>

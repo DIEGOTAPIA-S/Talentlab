@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
+import TalentLabLogo from './TalentLabLogo';
 
 export default function SidebarLayout() {
   const location = useLocation();
@@ -21,8 +22,9 @@ export default function SidebarLayout() {
     <div className="dashboard-layout">
       <aside className="sidebar">
         <div>
-          <Link to={isSuperAdmin ? "/admin/usuarios" : "/dashboard"} className="sidebar-brand">
-            <i className="fa-solid fa-flask-bubble"></i> Talent<span>Lab</span>
+          <Link to={isSuperAdmin ? "/admin/usuarios" : "/dashboard"} className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <TalentLabLogo size={34} />
+            <span>Talent<span>Lab</span></span>
           </Link>
 
           {/* Tarjeta de Identidad del Rol Activo */}

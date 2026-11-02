@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { generateInstitutionalPdfReport } from '../utils/pdfReportGenerator';
 
 const DEFAULT_STUDENTS = [
   { id: 1, name: 'Juan Pérez García', program: 'Tecnólogo en ADSO', attendance: 62, academic_score: 58, risk: 'alto', factor: 'Económico (Transporte / Sin Auxilio)', score: '82%' },
@@ -70,7 +71,23 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() =>
+              generateInstitutionalPdfReport({
+                institution: session.institution || 'SENA - Centro de Tecnologías del Software',
+                directorName: (session.fullName || 'Patricia Gómez Salazar').replace(/^Dra\.\s*/i, ''),
+                directorTitle: session.title || 'Coordinación Académica',
+                students,
+                activePlansCount
+              })
+            }
+          >
+            <i className="fa-solid fa-file-pdf"></i> Descargar Informe PDF
+          </button>
+
           <button
             type="button"
             className="btn btn-secondary"

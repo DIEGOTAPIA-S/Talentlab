@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import TalentLabLogo from '../components/TalentLabLogo';
 
 export default function Login() {
   const [activeRole, setActiveRole] = useState('student');
@@ -83,9 +84,55 @@ export default function Login() {
   return (
     <div className="login-layout">
       <div className="login-visuals">
-        <div className="login-branding">
-          <h1><i className="fa-solid fa-flask-bubble"></i> Talent<span>Lab</span></h1>
-          <p>Plataforma Inteligente de Retención Estudiantil y Simulación de Entrevistas con IA.</p>
+        <div
+          className="login-branding"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            width: '100%',
+            padding: '0 32px'
+          }}
+        >
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '16px',
+              marginBottom: '16px'
+            }}
+          >
+            <TalentLabLogo size={64} />
+            <h1 style={{ margin: 0, fontSize: '3.2rem', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1 }}>
+              Talent<span>Lab</span>
+            </h1>
+          </div>
+
+          <div
+            style={{
+              width: '72px',
+              height: '3px',
+              borderRadius: '999px',
+              background: 'linear-gradient(90deg, #38bdf8, #8b5cf6, #ec4899)',
+              marginBottom: '16px'
+            }}
+          />
+
+          <p
+            style={{
+              fontSize: '1.35rem',
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              color: '#f8fafc',
+              margin: 0,
+              textAlign: 'center'
+            }}
+          >
+            “Detecta. Prepara. Conecta.”
+          </p>
         </div>
       </div>
       
