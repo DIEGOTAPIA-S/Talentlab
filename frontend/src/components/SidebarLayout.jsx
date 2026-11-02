@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import TalentLabLogo from './TalentLabLogo';
 
@@ -6,7 +6,31 @@ export default function SidebarLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const session = JSON.parse(localStorage.getItem('user_session') || '{}');
+  const [session, setSession] = useState(() => JSON.parse(localStorage.getItem('user_session') || '{}'));
+
+  // Sincronización automática con SQLite cuando el Super Admin o el propio Directivo modifica datos de perfil o institución
+  useEffect(() => {
+    const current = JSON.parse(localStorage.getItem('user_session') || '{}');
+    if (!current.email) return;
+    fetch(`http://localhost:8000/api/auth/profile?email=${encodeURIComponent(current.email)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(dbProf => {
+        if (dbProf && dbProf.email) {
+          const updated = {
+            ...current,
+            fullName: dbProf.fullName || current.fullName,
+            institution: dbProf.institution || current.institution,
+            title: dbProf.title || current.title,
+            phone: dbProf.phone || current.phone,
+            department: dbProf.department || current.department
+          };
+          localStorage.setItem('user_session', JSON.stringify(updated));
+          setSession(updated);
+        }
+      })
+      .catch(() => {});
+  }, [location.pathname]);
+
   const isSuperAdmin = session.role === 'super_admin';
   const rawName = session.fullName || (isSuperAdmin ? 'Carlos Alberto Ramírez' : 'Patricia Gómez Salazar');
   const displayName = rawName.replace(/^Dra\.\s*/i, '');

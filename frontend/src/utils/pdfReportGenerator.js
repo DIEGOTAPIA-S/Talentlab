@@ -337,9 +337,9 @@ export function generateInstitutionalPdfReport({
       <div class="note">Asistencia media / Nota media (0-100)</div>
     </div>
     <div class="kpi-box">
-      <div class="label">Retención Proyectada</div>
+      <div class="label">Retención y Simulador IA</div>
       <div class="value" style="color:#4f46e5;">${retentionProjected}%</div>
-      <div class="note">Simulador IA prom: ${avgInterview}/100 · Planes: ${activePlansCount}</div>
+      <div class="note">${interviewed.length}/${students.length} presentaron IA (Prom: ${avgInterview}/100) · Planes: ${activePlansCount}</div>
     </div>
   </div>
 
@@ -409,7 +409,11 @@ export function generateInstitutionalPdfReport({
             <td>${st.program || ''}</td>
             <td>${st.attendance ?? 85}%</td>
             <td>${st.academic_score ?? 75} pts</td>
-            <td>${st.interview_score ? st.interview_score + '/100' : 'Pendiente'}</td>
+            <td>${
+              st.interview_score
+                ? `<strong style="color:#047857;">✔ Presentó (${st.interview_score}/100)</strong><br/><span style="color:#64748b;font-size:9px;">${st.interviews_count || 1} simulación(es)</span>`
+                : '<span style="color:#94a3b8;">⏳ Pendiente</span>'
+            }</td>
             <td>${st.emotional_status || 'Estable'}</td>
             <td><span class="badge badge-${riskLvl}">${riskLvl.toUpperCase()} (${probText})</span></td>
             <td>${st.factor || 'Desempeño Estable'}</td>

@@ -250,11 +250,25 @@ export default function Dashboard() {
                     </td>
                     <td>
                       {student.interview_score ? (
-                        <span style={{ fontWeight: 700, color: student.interview_score >= 75 ? '#34d399' : '#fbbf24' }}>
-                          {student.interview_score}/100 pts
-                        </span>
+                        <div>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            background: student.interview_score >= 75 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                            color: student.interview_score >= 75 ? '#34d399' : '#fbbf24',
+                            border: `1px solid ${student.interview_score >= 75 ? 'rgba(52, 211, 153, 0.35)' : 'rgba(251, 191, 36, 0.35)'}`
+                          }}>
+                            ✔ Presentó ({student.interview_score}/100)
+                          </span>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            {student.interviews_count || 1} simulación(es)
+                          </div>
+                        </div>
                       ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Pendiente</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>⏳ Pendiente</span>
                       )}
                     </td>
                     <td>

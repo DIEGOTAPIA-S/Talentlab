@@ -7,6 +7,14 @@ export default function Egresados() {
   const [filterProgram, setFilterProgram] = useState('todos');
   const [showModal, setShowModal] = useState(false);
   const [toast, setToast] = useState(null);
+  const [programsCatalog, setProgramsCatalog] = useState([
+    'Tecnólogo en ADSO',
+    'Diseño Gráfico Digital',
+    'Desarrollo de Software',
+    'Tecnólogo en Gestión Empresarial',
+    'Tecnólogo en Contabilidad y Finanzas',
+    'Ingeniería de Sistemas'
+  ]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -27,15 +35,60 @@ export default function Egresados() {
   const fetchGraduates = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:8000/api/graduates');
+      const [res, progRes] = await Promise.all([
+        fetch('http://localhost:8000/api/graduates'),
+        fetch('http://localhost:8000/api/institutions/programs')
+      ]);
       if (res.ok) {
         const data = await res.json();
         setGraduates(data.graduates || []);
+      }
+      if (progRes.ok) {
+        const pData = await progRes.json();
+        if (Array.isArray(pData.programs) && pData.programs.length > 0) {
+          setProgramsCatalog(pData.programs);
+        }
       }
     } catch (e) {
       console.warn('API egresados no disponible:', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleMentor = async (grad) => {
+    try {
+      const nextMentor = grad.isMentor ? 0 : 1;
+      const res = await fetch(`http://localhost:8000/api/graduates/${grad.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_mentor: nextMentor })
+      });
+      if (res.ok) {
+        showToast(
+          nextMentor === 1
+            ? `${grad.name} habilitado como Mentor IA para los estudiantes.`
+            : `${grad.name} retirado del listado de Mentores IA.`
+        );
+        fetchGraduates();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteGraduate = async (grad) => {
+    if (!window.confirm(`¿Deseas desvincular a ${grad.name} de la Red de Egresados y Mentores?`)) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/graduates/${grad.id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        showToast(`${grad.name} desvinculado de la Red de Egresados.`);
+        fetchGraduates();
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -194,11 +247,40 @@ export default function Egresados() {
                     {grad.program}
                   </p>
                 </div>
-                {grad.isMentor && (
-                  <span title="Mentor Voluntario Activo" style={{ color: 'var(--primary)', fontSize: '1.1rem' }}>
-                    <i className="fa-solid fa-medal"></i>
-                  </span>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleMentor(grad)}
+                    title={grad.isMentor ? 'Mentor IA Activo (Clic para pausar)' : 'Habilitar como Mentor IA'}
+                    style={{
+                      padding: '4px 9px',
+                      borderRadius: '999px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: grad.isMentor ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255,255,255,0.12)',
+                      background: grad.isMentor ? 'rgba(16, 185, 129, 0.14)' : 'rgba(255,255,255,0.04)',
+                      color: grad.isMentor ? '#34d399' : '#94a3b8'
+                    }}
+                  >
+                    <i className="fa-solid fa-medal"></i> {grad.isMentor ? 'Mentor IA' : 'Inactivo'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteGraduate(grad)}
+                    title="Desvincular egresado"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#f87171',
+                      cursor: 'pointer',
+                      fontSize: '0.82rem',
+                      padding: '4px'
+                    }}
+                  >
+                    <i className="fa-solid fa-trash"></i>
+                  </button>
+                </div>
               </div>
 
               <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '8px', marginBottom: '15px' }}>
@@ -288,16 +370,16 @@ export default function Egresados() {
               </div>
 
               <div className="form-group">
-                <label>Programa de Formación SENA</label>
+                <label>Programa de Formación (Sincronizado con Catálogo Institucional)</label>
                 <select 
                   className="form-control"
+                  style={{ backgroundColor: '#0f172a', color: '#f8fafc', colorScheme: 'dark' }}
                   value={formData.program}
                   onChange={(e) => setFormData({ ...formData, program: e.target.value })}
                 >
-                  <option value="Tecnólogo en ADSO">Tecnólogo en ADSO</option>
-                  <option value="Diseño Gráfico Digital">Diseño Gráfico Digital</option>
-                  <option value="Desarrollo de Software">Desarrollo de Software</option>
-                  <option value="Gestión de Redes">Gestión de Redes</option>
+                  {programsCatalog.map(p => (
+                    <option key={p} value={p} style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>{p}</option>
+                  ))}
                 </select>
               </div>
 

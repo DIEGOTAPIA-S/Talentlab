@@ -13,7 +13,7 @@ export const INTERVIEW_MODES = [
     interviewerId: 'carolina',
     tagline: 'Empatía, autoconocimiento, comunicación asertiva y valores humanos',
     description: 'Conversación reflexiva sobre habilidades socioemocionales, resolución pacífica de conflictos, resiliencia y trabajo en equipo.',
-    initialQuestion: '¡Hola! Qué gusto saludarte. Mi nombre es Carolina Ortiz y seré tu mentora y evaluadora en esta primera etapa de Habilidades Blandas. Más que una prueba rígida, quiero que tengamos una conversación cercana y tranquila para conocerte como persona: tus valores, tu vocación y cómo te relacionas con los demás. Para comenzar, cuéntame: ¿qué te motiva cada día en tu camino formativo y qué experiencia trabajando con otros te ha dejado un aprendizaje valioso que recuerdes con orgullo?',
+    initialQuestion: '¡Hola! Qué gusto saludarte, soy Carolina Ortiz. Quiero que tengamos una conversación cercana y tranquila para conocerte. Para comenzar, cuéntame sobre ti: ¿qué te motiva en tu carrera y qué experiencia trabajando en equipo recuerdas con orgullo?',
     roleTarget: 'Evaluación de Talento Humano y Habilidades Blandas'
   },
   {
@@ -70,7 +70,37 @@ export const TECHNICAL_PROGRAMS = [
   }
 ];
 
-// 3. PERSONAS EVALUADORAS (Totalmente neutrales, sin entidades externas ni marcas)
+// 3. PERSONAS EVALUADORAS Y SUS 2 VOCES FIJAS SOSTENIDAS EN CÓDIGO PARA DESPLIEGUE
+// Se definen dos perfiles vocales fijos en Español Latinoamericano (1 Femenina para Filtro 1 y 1 Masculina para Filtro 2)
+export const FIXED_INTERVIEWER_VOICES = {
+  carolina: {
+    id: 'carolina_latam_female',
+    label: 'Voz Latina Femenina (Dra. Carolina Ortiz)',
+    preferredLangs: ['es-CO', 'es-MX', 'es-US', 'es-419', 'es-AR', 'es-CL', 'es-PE'],
+    preferredNames: [
+      'salome', 'salomé', 'sabina', 'dalia', 'paulina', 'paloma',
+      'francisca', 'camila', 'sofia', 'sofía', 'hilda',
+      'estados unidos', 'united states', 'latinoamérica', 'latinoamerica', 'colombia', 'mexico', 'méxico'
+    ],
+    pitch: 1.08,
+    rate: 0.98
+  },
+  carlos: {
+    id: 'carlos_latam_male',
+    label: 'Voz Latina Masculina (Ing. Carlos Mendoza)',
+    preferredLangs: ['es-CO', 'es-MX', 'es-US', 'es-419', 'es-AR', 'es-CL', 'es-PE'],
+    preferredNames: [
+      'gonzalo', 'raul', 'raúl', 'jorge', 'alonso', 'juan',
+      'rodrigo', 'sebastian', 'sebastián', 'tomas', 'tomás', 'diego', 'carlos', 'mateo'
+    ],
+    // Si el navegador desplegado solo provee una voz latina base (ej. Google español de Estados Unidos en Chrome),
+    // se modula el timbre a 0.78 para sostener siempre la segunda voz masculina latina sin caer en voces de España (es-ES).
+    pitch: 0.84,
+    fallbackSharedPitch: 0.76,
+    rate: 1.01
+  }
+};
+
 export const INTERVIEWER_PERSONAS = [
   {
     id: 'carolina',
@@ -83,8 +113,9 @@ export const INTERVIEWER_PERSONAS = [
     image: '/avatars/carolina.jpg',
     badgeColor: '#a855f7',
     accentColor: 'rgba(168, 85, 247, 0.25)',
-    voicePitch: 1.10,
-    voiceRate: 0.98
+    voiceProfile: FIXED_INTERVIEWER_VOICES.carolina,
+    voicePitch: FIXED_INTERVIEWER_VOICES.carolina.pitch,
+    voiceRate: FIXED_INTERVIEWER_VOICES.carolina.rate
   },
   {
     id: 'carlos',
@@ -97,8 +128,9 @@ export const INTERVIEWER_PERSONAS = [
     image: '/avatars/carlos.jpg',
     badgeColor: '#06b6d4',
     accentColor: 'rgba(6, 182, 212, 0.25)',
-    voicePitch: 0.88,
-    voiceRate: 1.02
+    voiceProfile: FIXED_INTERVIEWER_VOICES.carlos,
+    voicePitch: FIXED_INTERVIEWER_VOICES.carlos.pitch,
+    voiceRate: FIXED_INTERVIEWER_VOICES.carlos.rate
   }
 ];
 

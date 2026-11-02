@@ -105,15 +105,20 @@ export default function Consolidado() {
                 students: (data?.students || []).map(s => ({
                   ...s,
                   interview_score: s.interviewScore,
-                  score: s.risk === 'alto' ? '78%' : s.risk === 'medio' ? '52%' : '16%',
+                  interviews_count: s.interviewsCount || (s.interviewScore ? 1 : 0),
+                  has_simulated: s.hasSimulated ?? Boolean(s.interviewScore),
+                  last_interview_role: s.lastInterviewRole || '',
+                  last_interview_date: s.lastInterviewDate || '',
+                  score: s.risk_probability || (s.risk === 'alto' ? '78%' : s.risk === 'medio' ? '52%' : '16%'),
                   factor:
-                    s.risk === 'alto'
+                    s.factor ||
+                    (s.risk === 'alto'
                       ? s.attendance < 70
                         ? 'Inasistencias Críticas (<70%)'
                         : 'Académico / Económico'
                       : s.risk === 'medio'
                       ? 'Alerta Preventiva'
-                      : 'Desempeño Estable'
+                      : 'Desempeño Estable')
                 }))
               })
             }
@@ -308,7 +313,20 @@ export default function Consolidado() {
                     <td style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{s.institution}</td>
                     <td>{s.program}</td>
                     <td>{s.attendance}%</td>
-                    <td>{s.interviewScore ?? '--'}</td>
+                    <td>
+                      {s.interviewScore ? (
+                        <div>
+                          <span style={{ fontWeight: 700, color: s.interviewScore >= 75 ? '#34d399' : '#fbbf24' }}>
+                            ✔ Presentó ({s.interviewScore}/100)
+                          </span>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            {s.interviewsCount || 1} simulación(es)
+                          </div>
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>⏳ Pendiente</span>
+                      )}
+                    </td>
                     <td>
                       <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700,
                         background: riskColors[s.risk]?.bg, color: riskColors[s.risk]?.fg, border: `1px solid ${riskColors[s.risk]?.fg}` }}>

@@ -4,6 +4,17 @@ export default function Mentorias() {
   const sessionData = JSON.parse(localStorage.getItem('user_session') || '{}');
   const studentName = sessionData.fullName || 'Diego Tapia';
   const studentEmail = sessionData.email || 'estudiante@talentlab.edu';
+  const studentProgram = sessionData.program || sessionData.title || 'Tecnología en Análisis y Desarrollo de Software (ADSO)';
+
+  // Integración con las conclusiones y brechas detectadas en el Simulador de Entrevistas IA
+  const savedCompReport = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('talentlab_comprehensive_report') || 'null');
+    } catch {
+      return null;
+    }
+  })();
+  const aiImprovements = savedCompReport?.conclusions?.priority_improvements || [];
 
   const [activeTab, setActiveTab] = useState('match'); // 'match' o 'sessions'
   const [goal, setGoal] = useState('Preparación para Etapa Productiva y Entrevistas Técnicas');
@@ -13,8 +24,16 @@ export default function Mentorias() {
 
   // Modal para agendar
   const [selectedMentor, setSelectedMentor] = useState(null);
-  const [bookingTopic, setBookingTopic] = useState('Revisión de Arquitectura de Software y Portafolio');
-  const [bookingDate, setBookingDate] = useState('2026-10-28');
+  const [bookingTopic, setBookingTopic] = useState(
+    aiImprovements[0]
+      ? `Refuerzo en: ${aiImprovements[0]}`
+      : 'Revisión de Proyectos, Método STAR y Preparación de Etapa Productiva'
+  );
+  const [bookingDate, setBookingDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return d.toISOString().split('T')[0];
+  });
   const [bookingTime, setBookingTime] = useState('16:00');
   const [toast, setToast] = useState(null);
 
@@ -41,17 +60,21 @@ export default function Mentorias() {
     runAiMatch();
   }, []);
 
-  // Algoritmo de Emparejamiento con IA
+  // Algoritmo de Emparejamiento con IA (Integrado con el programa real del estudiante y su reporte del Simulador IA)
   const runAiMatch = async () => {
     setIsMatching(true);
     try {
+      const dynamicPriorities = aiImprovements.length > 0
+        ? aiImprovements
+        : [studentProgram, goal, 'Entrevistas Técnicas'];
+
       const res = await fetch('http://localhost:8000/api/mentorships/match', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          student_program: 'Tecnólogo en ADSO',
+          student_program: studentProgram,
           goal: goal,
-          priorities: ['React', 'FastAPI', 'Entrevistas Técnicas']
+          priorities: dynamicPriorities
         })
       });
       if (res.ok) {
@@ -134,10 +157,33 @@ export default function Mentorias() {
         <div>
           {/* Panel de calibración del objetivo */}
           <div className="card" style={{ marginBottom: '25px', background: 'linear-gradient(135deg, rgba(30,41,59,0.8), rgba(139,92,246,0.1))', border: '1px solid rgba(139,92,246,0.3)' }}>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <i className="fa-solid fa-microchip" style={{ color: 'var(--primary)' }}></i>
-              Parámetros de Búsqueda del Algoritmo Vocacional
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+              <h3 style={{ fontSize: '1.15rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fa-solid fa-microchip" style={{ color: 'var(--primary)' }}></i>
+                Parámetros de Búsqueda del Algoritmo Vocacional
+              </h3>
+              <span className="badge" style={{ background: 'rgba(6, 182, 212, 0.14)', color: '#38bdf8', border: '1px solid rgba(6, 182, 212, 0.3)', fontSize: '0.75rem' }}>
+                <i className="fa-solid fa-graduation-cap"></i> Programa detectado: {studentProgram}
+              </span>
+            </div>
+
+            {aiImprovements.length > 0 && (
+              <div style={{
+                marginBottom: '14px',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                background: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                fontSize: '0.8rem',
+                color: '#cbd5e1'
+              }}>
+                <strong style={{ color: '#34d399' }}>
+                  <i className="fa-solid fa-wand-magic-sparkles"></i> Conectado con tu último Reporte del Simulador IA:
+                </strong>{' '}
+                Priorizando mentores para reforzar: <em>{aiImprovements.join(' · ')}</em>
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'flex-end' }}>
               <div style={{ flex: 1, minWidth: '280px' }}>
                 <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
@@ -145,14 +191,17 @@ export default function Mentorias() {
                 </label>
                 <select 
                   className="form-control" 
+                  style={{ backgroundColor: '#0f172a', color: '#f8fafc', colorScheme: 'dark' }}
                   value={goal}
                   onChange={(e) => setGoal(e.target.value)}
                 >
-                  <option value="Preparación para Etapa Productiva y Entrevistas Técnicas">Preparación para Etapa Productiva y Entrevistas Técnicas</option>
-                  <option value="Arquitectura Web, React & FastAPI">Arquitectura Frontend (React, Vite, CSS)</option>
-                  <option value="Python, Microservicios y PostgreSQL">Desarrollo Backend (Python, APIs y Bases de Datos)</option>
-                  <option value="Git, Docker y Pruebas Unitarias">DevOps, Control de Versiones y Buenas Prácticas</option>
-                  <option value="Inserción Laboral, Salarios y Negociación">Inserción Laboral, Hoja de Vida y Salarios</option>
+                  <option value="Preparación para Etapa Productiva y Entrevistas Técnicas">Preparación para Etapa Productiva, Método STAR y Entrevistas</option>
+                  <option value="Arquitectura Web, React & FastAPI">Desarrollo de Software Frontend & Fullstack (React, Vite, UI)</option>
+                  <option value="Python, Microservicios y PostgreSQL">Desarrollo Backend, APIs y Bases de Datos SQL/NoSQL</option>
+                  <option value="Redes, Cloud, Ciberseguridad y DevOps">Infraestructura, Redes, Cloud y Ciberseguridad</option>
+                  <option value="Gestión Empresarial, Procesos Financieros e Indicadores KPI">Gestión Empresarial, Finanzas, Contabilidad y Procesos</option>
+                  <option value="Diseño UX/UI, Identidad Visual y Producción Multimedia">Diseño UX/UI, Prototipado y Multimedia</option>
+                  <option value="Inserción Laboral, Salarios y Negociación">Inserción Laboral, Hoja de Vida y Negociación Salarial</option>
                 </select>
               </div>
               <button 

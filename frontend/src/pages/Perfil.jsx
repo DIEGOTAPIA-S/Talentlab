@@ -64,15 +64,17 @@ export default function Perfil() {
       ? 'Administración de Plataforma'
       : rawDepartment;
 
+    const resolvedEmail =
+      sessionData.email ||
+      (role === 'super_admin'
+        ? 'admin@talentlab.edu'
+        : role === 'admin_tenant'
+        ? 'director@talentlab.edu'
+        : 'estudiante@talentlab.edu');
+
     setFormData({
       fullName: cleanFullName,
-      email:
-        sessionData.email ||
-        (role === 'super_admin'
-          ? 'admin@talentlab.edu'
-          : role === 'admin_tenant'
-          ? 'director@talentlab.edu'
-          : 'estudiante@talentlab.edu'),
+      email: resolvedEmail,
       institution: cleanInstitution,
       title: cleanTitle,
       phone:
@@ -85,6 +87,23 @@ export default function Perfil() {
       department: cleanDepartment,
       password: ''
     });
+
+    // Sincronizar con la ficha oficial almacenada en SQLite (Gobierno de Datos)
+    fetch(`http://localhost:8000/api/auth/profile?email=${encodeURIComponent(resolvedEmail)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(dbProfile => {
+        if (dbProfile && dbProfile.email) {
+          setFormData(prev => ({
+            ...prev,
+            fullName: dbProfile.fullName || prev.fullName,
+            institution: dbProfile.institution || prev.institution,
+            title: dbProfile.title || prev.title,
+            phone: dbProfile.phone || prev.phone,
+            department: dbProfile.department || prev.department
+          }));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleProfileSubmit = async (e) => {
@@ -97,17 +116,19 @@ export default function Perfil() {
       });
 
       if (res.ok) {
+        const cleanProg = (formData.title || '').replace(/^Aprendiz\s*-\s*/i, '').trim();
         const updatedSession = {
           ...session,
           fullName: formData.fullName,
           institution: formData.institution,
           title: formData.title,
+          ...(session.role === 'student' && cleanProg ? { program: cleanProg } : {}),
           phone: formData.phone,
           department: formData.department
         };
         localStorage.setItem('user_session', JSON.stringify(updatedSession));
         setSession(updatedSession);
-        showToast('Información de perfil actualizada exitosamente.');
+        showToast('Información de perfil sincronizada exitosamente con Coordinación y Base de Datos.');
       } else {
         alert('Error al guardar cambios.');
       }
@@ -256,13 +277,20 @@ export default function Perfil() {
 
             {!isSuperAdmin && (
               <div className="form-group">
-                <label>Institución o Centro de Formación</label>
+                <label>
+                  Institución o Centro de Formación{' '}
+                  <span style={{ fontSize: '0.72rem', color: '#38bdf8', fontWeight: 500 }}>
+                    (Asignada por Gobernanza Multi-Tenant)
+                  </span>
+                </label>
                 <input
                   type="text"
                   className="form-control"
                   required
                   value={formData.institution}
-                  onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
+                  readOnly
+                  style={{ opacity: 0.78, cursor: 'not-allowed' }}
+                  title="La institución es administrada centralmente para mantener tu vinculación con Coordinación"
                 />
               </div>
             )}

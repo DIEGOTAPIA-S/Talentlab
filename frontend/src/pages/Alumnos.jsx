@@ -107,6 +107,14 @@ export default function Alumnos() {
   });
 
   const [notification, setNotification] = useState(null);
+  const [institutionPrograms, setInstitutionPrograms] = useState([
+    'Tecnólogo en ADSO',
+    'Desarrollo de Software',
+    'Diseño Gráfico Digital',
+    'Tecnólogo en Gestión Empresarial',
+    'Tecnólogo en Contabilidad y Finanzas',
+    'Ingeniería de Sistemas'
+  ]);
   const session = JSON.parse(localStorage.getItem('user_session') || '{}');
   const isSuperAdmin = session.role === 'super_admin';
   const myInstitution = session.institution || 'SENA - Centro de Tecnologías del Software';
@@ -117,10 +125,19 @@ export default function Alumnos() {
       const instQuery = !isSuperAdmin && myInstitution
         ? `?institution=${encodeURIComponent(myInstitution)}`
         : '';
-      const res = await fetch(`http://localhost:8000/api/students${instQuery}`);
+      const [res, progRes] = await Promise.all([
+        fetch(`http://localhost:8000/api/students${instQuery}`),
+        fetch(`http://localhost:8000/api/institutions/programs${instQuery}`)
+      ]);
       if (res.ok) {
         const data = await res.json();
         setStudents(data.students || []);
+      }
+      if (progRes.ok) {
+        const pData = await progRes.json();
+        if (Array.isArray(pData.programs) && pData.programs.length > 0) {
+          setInstitutionPrograms(pData.programs);
+        }
       }
     } catch (err) {
       console.warn('Backend local no detectado:', err);
@@ -558,9 +575,15 @@ export default function Alumnos() {
                   </td>
                   <td>
                     <span style={{ fontWeight: 600 }}>{al.academic_score} pts</span>
-                    <span style={{ fontSize: '0.76rem', color: al.interview_score ? '#38bdf8' : 'var(--text-muted)', display: 'block' }}>
-                      IA: {al.interview_score ? `${al.interview_score}/100` : 'Pendiente'}
-                    </span>
+                    {al.interview_score ? (
+                      <span style={{ fontSize: '0.74rem', color: al.interview_score >= 75 ? '#34d399' : '#38bdf8', fontWeight: 600, display: 'block', marginTop: '2px' }}>
+                        ✔ Presentó IA: {al.interview_score}/100 ({al.interviews_count || 1} sim.)
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                        ⏳ Simulación Pendiente
+                      </span>
+                    )}
                   </td>
                   <td>
                     <span style={{
@@ -668,18 +691,16 @@ export default function Alumnos() {
               </div>
 
               <div className="form-group">
-                <label>Programa de Formación</label>
+                <label>Programa de Formación (Sincronizado con Catálogo Institucional)</label>
                 <select 
                   className="form-control"
+                  style={{ backgroundColor: '#0f172a', color: '#f8fafc', colorScheme: 'dark' }}
                   value={formData.program}
                   onChange={(e) => setFormData({ ...formData, program: e.target.value })}
                 >
-                  <option value="Tecnólogo en ADSO">Tecnólogo en ADSO</option>
-                  <option value="Desarrollo de Software">Desarrollo de Software</option>
-                  <option value="Diseño Gráfico Digital">Diseño Gráfico Digital</option>
-                  <option value="Tecnólogo en Gestión Empresarial">Tecnólogo en Gestión Empresarial</option>
-                  <option value="Tecnólogo en Contabilidad y Finanzas">Tecnólogo en Contabilidad y Finanzas</option>
-                  <option value="Ingeniería de Sistemas">Ingeniería de Sistemas</option>
+                  {institutionPrograms.map(p => (
+                    <option key={p} value={p} style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>{p}</option>
+                  ))}
                 </select>
               </div>
 
@@ -836,6 +857,20 @@ export default function Alumnos() {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label>Programa de Formación</label>
+                <select 
+                  className="form-control"
+                  style={{ backgroundColor: '#0f172a', color: '#f8fafc', colorScheme: 'dark' }}
+                  value={formData.program}
+                  onChange={(e) => setFormData({ ...formData, program: e.target.value })}
+                >
+                  {[...new Set([...institutionPrograms, formData.program].filter(Boolean))].map(p => (
+                    <option key={p} value={p} style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>{p}</option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
@@ -1022,11 +1057,46 @@ export default function Alumnos() {
               </div>
 
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '6px' }}>
                   <span>4. Factor Emocional y Simulador de Entrevista IA</span>
                   <strong style={{ color: (selectedAlumno.emotional_status || 'Estable') === 'Estable' ? '#34d399' : '#fbbf24' }}>
-                    {selectedAlumno.emotional_status || 'Estable'} (IA: {selectedAlumno.interview_score ? `${selectedAlumno.interview_score}/100` : 'Pendiente'})
+                    {selectedAlumno.emotional_status || 'Estable'}
                   </strong>
+                </div>
+                <div style={{
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  border: '1px solid rgba(56, 189, 248, 0.22)',
+                  fontSize: '0.79rem'
+                }}>
+                  {selectedAlumno.interview_score ? (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '6px' }}>
+                        <span style={{ color: '#34d399', fontWeight: 700 }}>
+                          ✔ Presentó Simulación IA ({selectedAlumno.interviews_count || 1} sesión/es)
+                        </span>
+                        <span style={{ fontWeight: 700, color: '#38bdf8' }}>
+                          Último Puntaje: {selectedAlumno.interview_score}/100 pts
+                        </span>
+                      </div>
+                      {selectedAlumno.last_interview_role && (
+                        <div style={{ color: '#cbd5e1', fontSize: '0.75rem', marginBottom: '3px' }}>
+                          <strong>Filtro / Rol Evaluado:</strong> {selectedAlumno.last_interview_role}
+                          {selectedAlumno.last_interview_date ? ` · ${selectedAlumno.last_interview_date}` : ''}
+                        </div>
+                      )}
+                      {selectedAlumno.last_interview_feedback && (
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                          "{selectedAlumno.last_interview_feedback}"
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      ⏳ El estudiante aún no ha presentado simulaciones en el Simulador de Entrevistas IA.
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

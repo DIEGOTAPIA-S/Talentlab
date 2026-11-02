@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { INTERVIEWER_PERSONAS } from '../lib/interviewerConstants';
 
 export { INTERVIEWER_PERSONAS };
@@ -10,17 +10,6 @@ export default function InterviewerAvatar({
   isThinking = false 
 }) {
   const persona = INTERVIEWER_PERSONAS.find(p => p.id === personaId) || INTERVIEWER_PERSONAS[0];
-  const [blink, setBlink] = useState(false);
-
-  // Ciclo periódico de parpadeo realista cada 3.6 segundos
-  useEffect(() => {
-    const blinkInterval = setInterval(() => {
-      setBlink(true);
-      setTimeout(() => setBlink(false), 140);
-    }, 3600);
-
-    return () => clearInterval(blinkInterval);
-  }, []);
 
   return (
     <div style={{ 
@@ -31,40 +20,14 @@ export default function InterviewerAvatar({
       background: '#0f172a',
       borderRadius: '14px'
     }}>
-      <style>{`
-        @keyframes avatarBreathe {
-          0%, 100% { transform: scale(1.02) translateY(0px); }
-          50% { transform: scale(1.035) translateY(-3px); }
-        }
-        @keyframes speakNod {
-          0%, 100% { transform: scale(1.03) translateY(0px) rotate(0deg); }
-          25% { transform: scale(1.04) translateY(-4px) rotate(0.4deg); }
-          75% { transform: scale(1.03) translateY(-1px) rotate(-0.4deg); }
-        }
-        @keyframes listenAttentive {
-          0%, 100% { transform: scale(1.025) translateY(0px) rotate(0deg); }
-          50% { transform: scale(1.035) translateY(-2px) rotate(0.6deg); }
-        }
-        @keyframes soundWaveRipple {
-          0% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.6); }
-          70% { box-shadow: 0 0 0 16px rgba(6, 182, 212, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
-        }
-      `}</style>
-
-      {/* Imagen Fotorrealista de la Persona con Animación Órganica */}
+      {/* Imagen Fotorrealista Estática del Evaluador (sin parpadeo ni movimiento) */}
       <div style={{
         width: '100%',
         height: '100%',
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        animation: isSpeaking 
-          ? 'speakNod 1.4s ease-in-out infinite' 
-          : isListening 
-          ? 'listenAttentive 2.4s ease-in-out infinite' 
-          : 'avatarBreathe 4s ease-in-out infinite'
+        justifyContent: 'center'
       }}>
         <img 
           src={persona.image} 
@@ -73,57 +36,39 @@ export default function InterviewerAvatar({
             width: '100%',
             height: '100%',
             objectFit: 'cover',
-            display: 'block',
-            filter: isThinking ? 'brightness(0.92)' : 'none',
-            transition: 'filter 0.3s'
+            display: 'block'
           }}
         />
-
-        {/* Efecto de Párpados / Parpadeo Orgánico */}
-        {blink && (
-          <div style={{
-            position: 'absolute',
-            top: '32%',
-            left: '42%',
-            width: '16%',
-            height: '4px',
-            backgroundColor: 'rgba(30, 20, 15, 0.45)',
-            borderRadius: '50%',
-            filter: 'blur(1px)',
-            pointerEvents: 'none'
-          }} />
-        )}
       </div>
 
-      {/* Degradado cinematográfico inferior para lectura de subtítulos */}
+      {/* Degradado inferior para lectura limpia del nombre y cargo */}
       <div style={{
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        height: '45%',
-        background: 'linear-gradient(to top, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.4) 60%, transparent 100%)',
+        height: '42%',
+        background: 'linear-gradient(to top, rgba(15,23,42,0.92) 0%, rgba(15,23,42,0.35) 60%, transparent 100%)',
         pointerEvents: 'none'
       }} />
 
-      {/* Onda acústica sobre el avatar cuando está hablando */}
+      {/* Indicador discreto de audio cuando el entrevistador habla */}
       {isSpeaking && (
         <div style={{
           position: 'absolute',
           bottom: '14px',
           right: '14px',
-          width: '38px',
-          height: '38px',
+          width: '36px',
+          height: '36px',
           borderRadius: '50%',
           background: 'rgba(6, 182, 212, 0.25)',
-          border: '2px solid #06b6d4',
+          border: '1.5px solid #06b6d4',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#22d3ee',
-          animation: 'soundWaveRipple 1.2s infinite'
+          color: '#22d3ee'
         }}>
-          <i className="fa-solid fa-volume-high fa-beat"></i>
+          <i className="fa-solid fa-volume-high"></i>
         </div>
       )}
 
@@ -149,9 +94,9 @@ export default function InterviewerAvatar({
         backdropFilter: 'blur(8px)',
         boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
       }}>
-        <i className={`fa-solid ${isSpeaking ? 'fa-volume-high' : isThinking ? 'fa-brain fa-spin' : 'fa-circle'}`} 
+        <i className={`fa-solid ${isSpeaking ? 'fa-volume-high' : isThinking ? 'fa-brain' : 'fa-circle'}`} 
            style={{ color: isSpeaking ? '#22d3ee' : isThinking ? '#fbbf24' : '#34d399', fontSize: '0.6rem' }}></i>
-        {isSpeaking ? 'Entrevistador Hablando' : isThinking ? 'Analizando Respuesta...' : isListening ? 'Escuchando Respuesta' : 'En Línea'}
+        {isSpeaking ? 'Entrevistador Hablando (Tiempo en Pausa)' : isThinking ? 'Analizando Respuesta...' : isListening ? 'Escuchando tu Respuesta' : 'En Línea'}
       </div>
 
       {/* Etiqueta inferior con nombre y rol */}

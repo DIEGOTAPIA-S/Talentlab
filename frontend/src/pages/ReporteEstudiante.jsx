@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function ReporteEstudiante() {
+  const navigate = useNavigate();
   const sessionData = JSON.parse(localStorage.getItem('user_session') || '{}');
   const studentName = sessionData.fullName || 'Diego Tapia';
   const studentEmail = sessionData.email || 'estudiante@talentlab.edu';
@@ -8,6 +10,7 @@ export default function ReporteEstudiante() {
 
   const [aiScore, setAiScore] = useState(85);
   const [comprehensiveReport, setComprehensiveReport] = useState(null);
+  const [liveStudentSummary, setLiveStudentSummary] = useState(null);
   const [aiTips, setAiTips] = useState([
     'Coherencia metodológica STAR comprobada',
     'Vocabulario técnico alineado con la industria de software',
@@ -22,19 +25,39 @@ export default function ReporteEstudiante() {
   const [notesInput, setNotesInput] = useState('');
   const [statusMessage, setStatusMessage] = useState(null);
 
-  const fetchMyPlans = async () => {
+  const fetchMyPlansAndSummary = async () => {
     setLoadingPlans(true);
     try {
       const params = new URLSearchParams();
       if (studentEmail) params.set('student_email', studentEmail);
       if (studentName) params.set('assigned_to', studentName);
-      const res = await fetch(`http://localhost:8000/api/plans/support?${params.toString()}`);
-      if (res.ok) {
-        const json = await res.json();
+      const [plansRes, summaryRes] = await Promise.all([
+        fetch(`http://localhost:8000/api/plans/support?${params.toString()}`),
+        fetch(`http://localhost:8000/api/student/summary?email=${encodeURIComponent(studentEmail)}`)
+      ]);
+
+      if (plansRes.ok) {
+        const json = await plansRes.json();
         setMyPlans(json.data || []);
       }
+
+      if (summaryRes.ok) {
+        const sumData = await summaryRes.json();
+        setLiveStudentSummary(sumData);
+        // Si no hay reporte en localStorage pero existe historial real en SQLite, sincronizarlo automáticamente
+        const hasLocalScore = localStorage.getItem('talentlab_last_score');
+        if (!hasLocalScore && sumData.latest_interview?.score) {
+          setAiScore(Number(sumData.latest_interview.score));
+        }
+        if (!localStorage.getItem('talentlab_last_feedback') && sumData.latest_interview?.feedback) {
+          setAiTips([
+            sumData.latest_interview.feedback,
+            `Rol evaluado: ${sumData.latest_interview.role_target || 'Evaluación Integral IA'}`
+          ]);
+        }
+      }
     } catch (e) {
-      console.error('Error cargando planes del estudiante:', e);
+      console.error('Error cargando datos del estudiante:', e);
     } finally {
       setLoadingPlans(false);
     }
@@ -64,8 +87,16 @@ export default function ReporteEstudiante() {
         console.error(e);
       }
     }
-    fetchMyPlans();
+    fetchMyPlansAndSummary();
   }, [studentEmail, studentName]);
+
+  // Cálculo dinámico de los 4 ejes de competencias (conectado al Simulador IA + Base de Datos SQLite)
+  const dbInterview = liveStudentSummary?.latest_interview;
+  const techCompetencyScore = comprehensiveReport?.breakdown?.tech_score || dbInterview?.alignment || Math.min(98, Math.max(45, aiScore + 4));
+  const hrCompetencyScore = comprehensiveReport?.breakdown?.hr_score || dbInterview?.alignment || Math.min(98, Math.max(45, aiScore + 2));
+  const grammarCompetencyScore = comprehensiveReport?.breakdown?.grammar || dbInterview?.grammar || aiScore;
+  const bodyCompetencyScore = comprehensiveReport?.breakdown?.body_language || dbInterview?.body_language || Math.min(96, Math.max(50, aiScore - 2));
+  const studentFicha = liveStudentSummary?.student;
 
   const openUpdatePlanModal = (plan) => {
     setSelectedPlan(plan);
@@ -92,7 +123,7 @@ export default function ReporteEstudiante() {
       if (res.ok) {
         setStatusMessage(`Avance y evidencia enviados a Coordinación para "${selectedPlan.title}".`);
         setSelectedPlan(null);
-        fetchMyPlans();
+        fetchMyPlansAndSummary();
         setTimeout(() => setStatusMessage(null), 5000);
       }
     } catch (err) {
@@ -174,29 +205,53 @@ export default function ReporteEstudiante() {
         </div>
       </div>
 
-      {/* Tarjeta de Resumen Estudiantil */}
+      {/* Tarjeta de Resumen Estudiantil Sincronizada con Base de Datos */}
       <div className="card" style={{ marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <span className="badge badge-success" style={{ marginBottom: '8px', display: 'inline-block' }}>
             <i className="fa-solid fa-shield-check"></i> Perfil Estudiantil Conectado a Coordinación
           </span>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '4px 0' }}>{studentName}</h2>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '4px 0' }}>{studentFicha?.name || studentName}</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-            <i className="fa-solid fa-building-columns"></i> {institution} | Correo: <strong>{studentEmail}</strong>
+            <i className="fa-solid fa-building-columns"></i> {studentFicha?.institution || institution} &nbsp;|&nbsp; Programa: <strong>{studentFicha?.program || sessionData.program || 'Tecnólogo en ADSO'}</strong> &nbsp;|&nbsp; Correo: <strong>{studentEmail}</strong>
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '25px' }}>
+        <div style={{ display: 'flex', gap: '22px', flexWrap: 'wrap' }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--primary)' }}>{aiScore}/100</div>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Puntaje Simulador IA</span>
+            <div style={{ fontSize: '1.55rem', fontWeight: 700, color: 'var(--primary)' }}>{aiScore}/100</div>
+            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Puntaje Simulador IA</span>
+          </div>
+          {studentFicha && (
+            <>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.55rem', fontWeight: 700, color: '#10b981' }}>{studentFicha.attendance}%</div>
+                <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Asistencia Académica</span>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.55rem', fontWeight: 700, color: '#a855f7' }}>{studentFicha.academic_score}/100</div>
+                <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Promedio Formativo</span>
+              </div>
+            </>
+          )}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '1.55rem', fontWeight: 700, color: '#38bdf8' }}>{myPlans.length}</div>
+            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Planes Asignados</span>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#38bdf8' }}>{myPlans.length}</div>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Planes Asignados</span>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--color-success)' }}>Activo</div>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Estado Institucional</span>
+            <div style={{
+              fontSize: '1.15rem',
+              fontWeight: 700,
+              paddingTop: '4px',
+              textTransform: 'capitalize',
+              color: (studentFicha?.risk_level || '').toLowerCase() === 'alto'
+                ? '#ef4444'
+                : (studentFicha?.risk_level || '').toLowerCase() === 'medio'
+                ? '#f59e0b'
+                : 'var(--color-success)'
+            }}>
+              {studentFicha ? `Riesgo ${studentFicha.risk_level}` : 'Activo'}
+            </div>
+            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Semáforo Permanencia</span>
           </div>
         </div>
       </div>
@@ -212,7 +267,7 @@ export default function ReporteEstudiante() {
               Mis Planes de Mejoramiento Activos (Asignados por Coordinación)
             </h3>
           </div>
-          <button className="btn btn-secondary no-print" onClick={fetchMyPlans} style={{ fontSize: '0.8rem', padding: '7px 14px' }}>
+          <button className="btn btn-secondary no-print" onClick={fetchMyPlansAndSummary} style={{ fontSize: '0.8rem', padding: '7px 14px' }}>
             <i className="fa-solid fa-rotate"></i> Sincronizar con Coordinación
           </button>
         </div>
@@ -386,47 +441,58 @@ export default function ReporteEstudiante() {
           </ul>
         </div>
 
-        {/* Columna 2 y 3: Desglose de Competencias */}
+        {/* Columna 2 y 3: Desglose Dinámico de Competencias */}
         <div className="card" style={{ gridColumn: 'span 2' }}>
-          <h3 style={{ marginBottom: '20px', fontWeight: 600 }}>Desglose de Competencias Evaluadas (Habilidades Siglo XXI)</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+            <h3 style={{ margin: 0, fontWeight: 600 }}>Desglose de Competencias Evaluadas (Habilidades Siglo XXI)</h3>
+            <button
+              type="button"
+              className="btn btn-secondary no-print"
+              style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+              onClick={() => navigate('/mentorias')}
+              title="Conectar con un mentor egresado según tus áreas de mejora"
+            >
+              <i className="fa-solid fa-graduation-cap"></i> Reforzar con Mentor IA
+            </button>
+          </div>
           
           <div style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.88rem' }}>
-              <span>Lógica y Resolución de Problemas Técnicos</span>
-              <strong style={{ color: 'var(--primary)' }}>92%</strong>
+              <span>Lógica y Resolución de Problemas Técnicos (Filtro 2)</span>
+              <strong style={{ color: 'var(--primary)' }}>{techCompetencyScore}%</strong>
             </div>
             <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-full)', height: '8px' }}>
-              <div style={{ width: '92%', height: '100%', background: 'var(--primary)', borderRadius: 'var(--radius-full)' }}></div>
+              <div style={{ width: `${techCompetencyScore}%`, height: '100%', background: 'var(--primary)', borderRadius: 'var(--radius-full)', transition: 'width 0.5s ease' }}></div>
             </div>
           </div>
 
           <div style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.88rem' }}>
-              <span>Trabajo Colaborativo y Empatía</span>
-              <strong style={{ color: 'var(--color-success)' }}>88%</strong>
+              <span>Trabajo Colaborativo, Empatía y Método STAR (Filtro 1)</span>
+              <strong style={{ color: 'var(--color-success)' }}>{hrCompetencyScore}%</strong>
             </div>
             <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-full)', height: '8px' }}>
-              <div style={{ width: '88%', height: '100%', background: 'var(--color-success)', borderRadius: 'var(--radius-full)' }}></div>
+              <div style={{ width: `${hrCompetencyScore}%`, height: '100%', background: 'var(--color-success)', borderRadius: 'var(--radius-full)', transition: 'width 0.5s ease' }}></div>
             </div>
           </div>
 
           <div style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.88rem' }}>
-              <span>Comunicación Asertiva y Expresión Oral</span>
-              <strong style={{ color: '#f59e0b' }}>{aiScore}%</strong>
+              <span>Comunicación Asertiva, Sintaxis y Expresión Oral</span>
+              <strong style={{ color: '#f59e0b' }}>{grammarCompetencyScore}%</strong>
             </div>
             <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-full)', height: '8px' }}>
-              <div style={{ width: `${aiScore}%`, height: '100%', background: '#f59e0b', borderRadius: 'var(--radius-full)' }}></div>
+              <div style={{ width: `${grammarCompetencyScore}%`, height: '100%', background: '#f59e0b', borderRadius: 'var(--radius-full)', transition: 'width 0.5s ease' }}></div>
             </div>
           </div>
 
           <div style={{ marginBottom: '25px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.88rem' }}>
-              <span>Orientación Vocacional STEAM / Tech</span>
-              <strong style={{ color: 'var(--primary)' }}>95%</strong>
+              <span>Lenguaje Corporal, Contacto Visual y Biometría Óptica</span>
+              <strong style={{ color: '#38bdf8' }}>{bodyCompetencyScore}%</strong>
             </div>
             <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-full)', height: '8px' }}>
-              <div style={{ width: '95%', height: '100%', background: 'var(--primary)', borderRadius: 'var(--radius-full)' }}></div>
+              <div style={{ width: `${bodyCompetencyScore}%`, height: '100%', background: '#38bdf8', borderRadius: 'var(--radius-full)', transition: 'width 0.5s ease' }}></div>
             </div>
           </div>
 

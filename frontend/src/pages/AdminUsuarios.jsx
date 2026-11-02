@@ -1230,11 +1230,16 @@ export default function AdminUsuarios() {
                     </td>
                     <td>
                       {st.interview_score ? (
-                        <span style={{ fontWeight: 700, color: st.interview_score >= 75 ? '#34d399' : '#fbbf24' }}>
-                          {st.interview_score}/100
-                        </span>
+                        <div>
+                          <span style={{ fontWeight: 700, color: st.interview_score >= 75 ? '#34d399' : '#fbbf24' }}>
+                            ✔ Presentó ({st.interview_score}/100)
+                          </span>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            {st.interview_count || 1} simulación(es)
+                          </div>
+                        </div>
                       ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Pendiente</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>⏳ Pendiente</span>
                       )}
                     </td>
                     <td>

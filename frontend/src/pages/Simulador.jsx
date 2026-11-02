@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import InterviewerAvatar from '../components/InterviewerAvatar';
 import { BodyAndVoiceAnalyzer } from '../lib/bodyAnalysis';
-import { INTERVIEW_MODES, TECHNICAL_PROGRAMS, INTERVIEWER_PERSONAS, VOCATIONAL_TRACKS } from '../lib/interviewerConstants';
+import { INTERVIEW_MODES, TECHNICAL_PROGRAMS, INTERVIEWER_PERSONAS, VOCATIONAL_TRACKS, FIXED_INTERVIEWER_VOICES } from '../lib/interviewerConstants';
 
 const API = 'http://localhost:8000';
 const BARS = 56;
 const MAX_ANSWER_SECONDS = 90; // Estándar de la industria HR Tech (HireVue/Modern Hire: 90s máx por respuesta)
-const TOTAL_INTERVIEW_SECONDS = 360; // 6 minutos en total para los dos filtros (3 min RH + 3 min Técnico)
+const TOTAL_INTERVIEW_SECONDS = 600; // 10 minutos de tiempo efectivo de habla del estudiante (no corre mientras habla el evaluador)
+const QUESTIONS_PER_FILTER = 3; // 3 preguntas en Filtro 1 (RRHH) + 3 preguntas en Filtro 2 (Técnico) = 6 preguntas en total
 
 const AXES = [
   { key: 'grammar', label: 'Gramática y Sintaxis', icon: 'fa-spell-check',
@@ -24,11 +25,16 @@ export default function Simulador() {
   const navigate = useNavigate();
   const [session, setSession] = useState(() => {
     const s = JSON.parse(localStorage.getItem('user_session') || 'null');
-    if (s && s.role === 'student') return s;
+    if (s && s.role === 'student') {
+      if (s.email === 'diego@talentlab.co' || s.email === 'estudiante@talentlab.co') {
+        s.email = 'estudiante@talentlab.edu';
+      }
+      return s;
+    }
     return {
-      fullName: 'Diego Alfonso Tapia Salazar',
-      email: 'diego@talentlab.co',
-      program: 'Tecnología en Análisis y Desarrollo de Software (ADSO)',
+      fullName: 'Diego Tapia',
+      email: 'estudiante@talentlab.edu',
+      program: 'Tecnólogo en ADSO',
       role: 'student'
     };
   });
@@ -38,9 +44,7 @@ export default function Simulador() {
   const [technicalProgram, setTechnicalProgram] = useState('software'); // 'software', 'gestion', 'redes', 'diseno'
   const [selectedTrackId, setSelectedTrackId] = useState('software');
   
-  const [messages, setMessages] = useState([
-    { role: 'ai', content: INTERVIEW_MODES[0].initialQuestion }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [score, setScore] = useState(null);
@@ -61,12 +65,9 @@ export default function Simulador() {
   const [showConclusionModal, setShowConclusionModal] = useState(false);
   const [isConcluding, setIsConcluding] = useState(false);
 
-  // Persona y Voces del Evaluador
+  // Persona y Voces Fijas del Evaluador (2 perfiles sostenidos en código: Carolina Femenina Latina y Carlos Masculina Latina)
   const [selectedPersonaId, setSelectedPersonaId] = useState('carolina');
   const [availableVoices, setAvailableVoices] = useState([]);
-  const [selectedVoiceName, setSelectedVoiceName] = useState('');
-  const [voiceRate, setVoiceRate] = useState(1.0);
-  const [voicePitch, setVoicePitch] = useState(1.0);
 
   // Cámara, Micrófono y Análisis Biométrico
   const [camOn, setCamOn] = useState(false);
@@ -109,11 +110,14 @@ export default function Simulador() {
     let s = JSON.parse(localStorage.getItem('user_session') || 'null');
     if (!s || s.role !== 'student') {
       s = {
-        fullName: 'Diego Alfonso Tapia Salazar',
-        email: 'diego@talentlab.co',
-        program: 'Tecnología en Análisis y Desarrollo de Software (ADSO)',
+        fullName: 'Diego Tapia',
+        email: 'estudiante@talentlab.edu',
+        program: 'Tecnólogo en ADSO',
         role: 'student'
       };
+      localStorage.setItem('user_session', JSON.stringify(s));
+    } else if (s.email === 'diego@talentlab.co' || s.email === 'estudiante@talentlab.co') {
+      s.email = 'estudiante@talentlab.edu';
       localStorage.setItem('user_session', JSON.stringify(s));
     }
     setSession(s);
@@ -142,16 +146,12 @@ export default function Simulador() {
 
     if (savedMode === 'hr') {
       setSelectedPersonaId('carolina');
-      const hrMode = INTERVIEW_MODES.find(m => m.id === 'hr') || INTERVIEW_MODES[0];
-      setMessages([{ role: 'ai', content: hrMode.initialQuestion }]);
     } else {
       setSelectedPersonaId('carlos');
-      const techProg = TECHNICAL_PROGRAMS.find(p => p.id === finalProg) || TECHNICAL_PROGRAMS[0];
-      setMessages([{ role: 'ai', content: techProg.initialQuestion }]);
     }
 
-    const savedVoice = localStorage.getItem('talentlab_voice_name');
-    if (savedVoice) setSelectedVoiceName(savedVoice);
+    // Limpiar cualquier selección manual previa para sostener siempre las 2 voces fijas por código
+    localStorage.removeItem('talentlab_voice_name');
   }, [navigate]);
 
   const handleSelectMode = (modeId) => {
@@ -160,15 +160,15 @@ export default function Simulador() {
     if (modeId === 'hr') {
       setSelectedPersonaId('carolina');
       localStorage.setItem('talentlab_interviewer_persona', 'carolina');
-      const hrMode = INTERVIEW_MODES.find(m => m.id === 'hr') || INTERVIEW_MODES[0];
-      if (messages.length <= 1) {
+      if (hasStarted && messages.length <= 1) {
+        const hrMode = INTERVIEW_MODES.find(m => m.id === 'hr') || INTERVIEW_MODES[0];
         setMessages([{ role: 'ai', content: hrMode.initialQuestion }]);
       }
     } else {
       setSelectedPersonaId('carlos');
       localStorage.setItem('talentlab_interviewer_persona', 'carlos');
-      const techProg = TECHNICAL_PROGRAMS.find(p => p.id === technicalProgram) || TECHNICAL_PROGRAMS[0];
-      if (messages.length <= 1) {
+      if (hasStarted && messages.length <= 1) {
+        const techProg = TECHNICAL_PROGRAMS.find(p => p.id === technicalProgram) || TECHNICAL_PROGRAMS[0];
         setMessages([{ role: 'ai', content: techProg.initialQuestion }]);
       }
     }
@@ -178,38 +178,64 @@ export default function Simulador() {
     setTechnicalProgram(progId);
     setSelectedTrackId(progId);
     localStorage.setItem('talentlab_technical_program', progId);
-    const techProg = TECHNICAL_PROGRAMS.find(p => p.id === progId) || TECHNICAL_PROGRAMS[0];
-    if (messages.length <= 1) {
-      setMessages([{ role: 'ai', content: techProg.initialQuestion }]);
+    if (hasStarted && interviewStage === 'stage2_tech' && techTurns === 0) {
+      const techProg = TECHNICAL_PROGRAMS.find(p => p.id === progId) || TECHNICAL_PROGRAMS[0];
+      setMessages(prev => [...prev.slice(0, -1), { role: 'ai', content: techProg.initialQuestion }]);
     }
   };
 
   const handleSelectTrack = handleSelectProgram;
 
-  // Carga y sincronización del banco de voces del sistema operativo / navegador
+  // Clasificador determinista para excluir acento de España (es-ES) y sostener las 2 voces latinas fijas en despliegue
+  const isSpainVoice = useCallback((v) => {
+    const lang = (v?.lang || '').toLowerCase().replace('_', '-');
+    const name = (v?.name || '').toLowerCase();
+    return (
+      lang === 'es-es' ||
+      name.includes('spain') ||
+      name.includes('españa') ||
+      name.includes('helena') ||
+      name.includes('laura') ||
+      name.includes('pablo') ||
+      name.includes('elvira') ||
+      name.includes('alvaro') ||
+      name.includes('álvaro') ||
+      name.trim() === 'google español'
+    );
+  }, []);
+
+  const getVoicePriorityScore = useCallback((v) => {
+    const lang = (v?.lang || '').toLowerCase().replace('_', '-');
+    const name = (v?.name || '').toLowerCase();
+    if (!lang.startsWith('es')) return -100;
+    if (isSpainVoice(v)) return 1; // Solo como último recurso si el sistema no tiene ninguna voz latina
+    let score = 50;
+    if (lang === 'es-co' || name.includes('colombia') || name.includes('salome') || name.includes('salomé') || name.includes('gonzalo')) score += 50;
+    else if (lang === 'es-mx' || name.includes('mexico') || name.includes('méxico') || name.includes('sabina') || name.includes('dalia') || name.includes('paulina') || name.includes('raul') || name.includes('raúl') || name.includes('jorge')) score += 45;
+    else if (lang === 'es-us' || lang === 'es-419' || name.includes('estados unidos') || name.includes('united states') || name.includes('latino') || name.includes('paloma') || name.includes('alonso')) score += 40;
+    else if (['es-ar', 'es-cl', 'es-pe', 'es-ve', 'es-ec', 'es-cr', 'es-pa', 'es-uy'].includes(lang)) score += 35;
+    if (name.includes('natural') || name.includes('online') || name.includes('neural')) score += 15;
+    return score;
+  }, [isSpainVoice]);
+
+  // Pre-carga automática del motor de síntesis del navegador para que las 2 voces fijas estén listas desde el segundo 0
   useEffect(() => {
     const updateVoices = () => {
       if (!window.speechSynthesis) return;
       const all = window.speechSynthesis.getVoices();
       if (!all || all.length === 0) return;
-
-      // Filtrar preferencialmente voces en español
-      const spanish = all.filter(v => v.lang.toLowerCase().startsWith('es'));
-      const sorted = spanish.length > 0 ? spanish : all;
+      const spanish = all.filter(v => (v.lang || '').toLowerCase().startsWith('es'));
+      const sorted = (spanish.length > 0 ? [...spanish] : [...all]).sort(
+        (a, b) => getVoicePriorityScore(b) - getVoicePriorityScore(a)
+      );
       setAvailableVoices(sorted);
-
-      if (!selectedVoiceName && sorted.length > 0) {
-        // Seleccionar por defecto voz colombiana o latinoamericana si existe
-        const preferred = sorted.find(v => v.lang === 'es-CO' || v.name.includes('Colombia') || v.name.includes('Sabina')) || sorted[0];
-        setSelectedVoiceName(preferred.name);
-      }
     };
 
     updateVoices();
     if (window.speechSynthesis) {
       window.speechSynthesis.onvoiceschanged = updateVoices;
     }
-  }, [selectedVoiceName]);
+  }, [getVoicePriorityScore]);
 
   useEffect(() => { 
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; 
@@ -392,9 +418,9 @@ export default function Simulador() {
     return () => clearInterval(t);
   }, [isRecording, stopAudio]);
 
-  // Temporizador Global de la Entrevista (6 minutos máx)
+  // Temporizador Global de la Entrevista (10 minutos máx — SOLO cuenta cuando el estudiante está hablando)
   useEffect(() => {
-    if (!hasStarted || interviewStage === 'concluded' || showConclusionModal) return;
+    if (!hasStarted || !isRecording || speaking || isThinking || interviewStage === 'concluded' || showConclusionModal) return;
     const t = setInterval(() => {
       setTotalSecondsLeft(s => {
         if (s <= 1) {
@@ -408,7 +434,7 @@ export default function Simulador() {
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [hasStarted, interviewStage, showConclusionModal]);
+  }, [hasStarted, isRecording, speaking, isThinking, interviewStage, showConclusionModal]);
 
   useEffect(() => () => { 
     stopStream(); 
@@ -416,71 +442,126 @@ export default function Simulador() {
     window.speechSynthesis?.cancel(); 
   }, [stopStream, stopAudio]);
 
-  // ---- Detección y Afinación de Voz Diferenciada por Evaluador (Carolina vs. Carlos) ----
+  // ---- Resolución Determinista de las 2 Voces Fijas Sostenidas en Código (Carolina vs. Carlos) ----
   const getPersonaVoiceConfig = (personaId) => {
     const isCarolina = (personaId || selectedPersonaId) === 'carolina';
-    const femaleKeywords = ['sabina', 'helena', 'laura', 'paulina', 'monica', 'mónica', 'zira', 'lucia', 'lucía', 'hilda', 'sofia', 'sofía', 'elena', 'maria', 'maría', 'female'];
-    const maleKeywords = ['pablo', 'raul', 'raúl', 'jorge', 'david', 'carlos', 'alonso', 'diego', 'gonzalo', 'mateo', 'tomas', 'tomás', 'manuel', 'javier', 'male'];
+    const profile = isCarolina ? FIXED_INTERVIEWER_VOICES.carolina : FIXED_INTERVIEWER_VOICES.carlos;
+    const femaleKeywords = FIXED_INTERVIEWER_VOICES.carolina.preferredNames;
+    const maleKeywords = FIXED_INTERVIEWER_VOICES.carlos.preferredNames;
 
-    const spanishVoices = availableVoices.filter(v => (v.lang || '').toLowerCase().startsWith('es'));
-    const candidatePool = spanishVoices.length > 0 ? spanishVoices : availableVoices;
+    // Leer voces directamente del motor en vivo para garantizar disponibilidad en cualquier navegador desplegado
+    const rawVoices = (window.speechSynthesis && window.speechSynthesis.getVoices().length > 0)
+      ? window.speechSynthesis.getVoices()
+      : availableVoices;
 
-    let matchedVoice = null;
+    const spanishVoices = [...rawVoices]
+      .filter(v => (v.lang || '').toLowerCase().startsWith('es'))
+      .sort((a, b) => getVoicePriorityScore(b) - getVoicePriorityScore(a));
+
+    const latinVoices = spanishVoices.filter(v => !isSpainVoice(v));
+    // Sostener exclusivamente el banco latinoamericano siempre que exista al menos 1 voz latina en el navegador
+    const candidatePool = latinVoices.length > 0 ? latinVoices : (spanishVoices.length > 0 ? spanishVoices : rawVoices);
+
+    const carolinaVoice =
+      candidatePool.find(v => femaleKeywords.some(k => (v.name || '').toLowerCase().includes(k))) ||
+      candidatePool[0] ||
+      null;
+
     if (isCarolina) {
-      matchedVoice = candidatePool.find(v => femaleKeywords.some(k => (v.name || '').toLowerCase().includes(k)));
-      if (!matchedVoice && candidatePool.length > 0) matchedVoice = candidatePool[0];
       return {
-        voice: matchedVoice,
-        pitch: 1.12,  // Timbre cálido, femenino y cercano para la Dra. Carolina Ortiz
-        rate: 0.98    // Cadencia humana, empática y reflexiva
-      };
-    } else {
-      matchedVoice = candidatePool.find(v => maleKeywords.some(k => (v.name || '').toLowerCase().includes(k)));
-      if (!matchedVoice && candidatePool.length > 1) {
-        matchedVoice = candidatePool.find(v => v !== candidatePool[0]) || candidatePool[1];
-      } else if (!matchedVoice && candidatePool.length > 0) {
-        matchedVoice = candidatePool[0];
-      }
-      return {
-        voice: matchedVoice,
-        pitch: 0.86,  // Timbre firme, masculino y técnico para el Ing. Carlos Mendoza
-        rate: 1.02    // Cadencia ágil y rigurosa de ingeniería
+        voice: carolinaVoice,
+        lang: carolinaVoice?.lang || 'es-CO',
+        pitch: profile.pitch, // 1.08 (Timbre femenino cálido latinoamericano)
+        rate: profile.rate    // 0.98
       };
     }
+
+    // Voz 2: Ing. Carlos Mendoza (Masculina Latinoamericana)
+    const explicitMaleVoice = candidatePool.find(v =>
+      maleKeywords.some(k => (v.name || '').toLowerCase().includes(k))
+    );
+    const alternateLatinVoice = candidatePool.find(v => v !== carolinaVoice);
+    const carlosVoice = explicitMaleVoice || alternateLatinVoice || carolinaVoice || null;
+    // Si el navegador desplegado (ej. Chrome estándar) solo expone 1 voz latina en la nube, modular pitch a 0.76 para diferenciar el registro masculino
+    const isSharedBaseVoice = carlosVoice && carolinaVoice && carlosVoice.name === carolinaVoice.name && !explicitMaleVoice;
+
+    return {
+      voice: carlosVoice,
+      lang: carlosVoice?.lang || 'es-CO',
+      pitch: isSharedBaseVoice ? (profile.fallbackSharedPitch || 0.76) : profile.pitch,
+      rate: profile.rate
+    };
   };
 
-  // ---- Síntesis de Voz del Entrevistador ----
-  const speak = (text, targetPersona = selectedPersonaId) => {
-    if (!window.speechSynthesis || !micOn) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    
-    const config = getPersonaVoiceConfig(targetPersona);
-    if (config.voice) {
-      u.voice = config.voice;
-    } else if (selectedVoiceName && availableVoices.length > 0) {
-      const matched = availableVoices.find(v => v.name === selectedVoiceName);
-      if (matched) u.voice = matched;
+  // ---- Síntesis de Voz del Entrevistador (Segmentada por oraciones para evitar cortes en Chrome Cloud TTS y con callback onComplete) ----
+  const speak = (text, targetPersona = selectedPersonaId, onComplete = null) => {
+    if (!window.speechSynthesis || !micOn || !text) {
+      if (typeof onComplete === 'function') {
+        setTimeout(onComplete, 1200);
+      }
+      return;
     }
-    u.lang = 'es-CO';
-    u.rate = config.rate;
-    u.pitch = config.pitch;
 
-    u.onstart = () => setSpeaking(true);
-    u.onend = () => setSpeaking(false);
-    u.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(u);
+    window.speechSynthesis.cancel();
+    const config = getPersonaVoiceConfig(targetPersona);
+
+    // Dividir textos largos en oraciones naturales para evitar el corte de 14s de las voces en la nube de Chromium
+    const sentences = text
+      .replace(/([.?!])\s+/g, '$1|')
+      .split('|')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const chunks = sentences.length > 0 ? sentences : [text];
+    let currentIdx = 0;
+    let completed = false;
+
+    const finishAllSpeech = () => {
+      if (completed) return;
+      completed = true;
+      setSpeaking(false);
+      if (typeof onComplete === 'function') {
+        onComplete();
+      }
+    };
+
+    const speakNextChunk = () => {
+      if (completed) return;
+      if (currentIdx >= chunks.length) {
+        finishAllSpeech();
+        return;
+      }
+
+      const u = new SpeechSynthesisUtterance(chunks[currentIdx]);
+      if (config.voice) {
+        u.voice = config.voice;
+      }
+      u.lang = config.lang || 'es-CO';
+      u.rate = config.rate;
+      u.pitch = config.pitch;
+
+      u.onstart = () => setSpeaking(true);
+      u.onend = () => {
+        currentIdx += 1;
+        if (currentIdx < chunks.length) {
+          speakNextChunk();
+        } else {
+          finishAllSpeech();
+        }
+      };
+      u.onerror = () => {
+        finishAllSpeech();
+      };
+
+      window.speechSynthesis.speak(u);
+    };
+
+    setSpeaking(true);
+    speakNextChunk();
   };
 
   const testVoice = (text = 'Hola, soy tu evaluador virtual de TalentLab. La simulación está lista.', targetPersona = selectedPersonaId) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    const config = getPersonaVoiceConfig(targetPersona);
-    if (config.voice) u.voice = config.voice;
-    u.rate = config.rate;
-    u.pitch = config.pitch;
-    window.speechSynthesis.speak(u);
+    speak(text, targetPersona);
   };
 
   const playBeep = (freq = 440, duration = 0.12) => {
@@ -724,8 +805,8 @@ export default function Simulador() {
         const nextHr = hrTurns + 1;
         setHrTurns(nextHr);
 
-        if (nextHr >= 2) {
-          // Completado Filtro 1 (RH) -> Dra. Carolina realiza traspaso contextual según desempeño real
+        if (nextHr >= QUESTIONS_PER_FILTER) {
+          // Completado Filtro 1 (RH) -> Dra. Carolina realiza traspaso contextual y ESPERA a terminar de hablar antes de pasar al Filtro 2
           const allHr = [...hrScoresList, finalCalculated];
           const avgHr = Math.round(allHr.reduce((a, b) => a + b, 0) / allHr.length);
           
@@ -742,19 +823,18 @@ export default function Simulador() {
             );
           }
           setMessages(prev => [...prev, { role: 'ai', content: handoverText }]);
-          speak(handoverText, 'carolina');
-
-          // Transición al Filtro 2
-          setTimeout(() => {
-            setInterviewStage('stage2_tech');
-            setInterviewMode('technical');
-            setSelectedPersonaId('carlos');
-            const techQ1 = activeProgramObj.initialQuestion;
-            setMessages(prev => [...prev, { role: 'ai', content: techQ1 }]);
-            speak(techQ1, 'carlos');
-          }, 3800);
+          speak(handoverText, 'carolina', () => {
+            setTimeout(() => {
+              setInterviewStage('stage2_tech');
+              setInterviewMode('technical');
+              setSelectedPersonaId('carlos');
+              const techQ1 = activeProgramObj.initialQuestion;
+              setMessages(prev => [...prev, { role: 'ai', content: techQ1 }]);
+              speak(techQ1, 'carlos');
+            }, 650);
+          });
         } else {
-          // Pregunta 2 de RH
+          // Siguiente pregunta de RH
           setMessages(prev => [...prev, { role: 'ai', content: aiText }]);
           speak(aiText, 'carolina');
         }
@@ -764,20 +844,20 @@ export default function Simulador() {
         const nextTech = techTurns + 1;
         setTechTurns(nextTech);
 
-        if (nextTech >= 2) {
-          // Completado Filtro 2 (Técnico) -> Concluir entrevista y generar dictamen integral
+        if (nextTech >= QUESTIONS_PER_FILTER) {
+          // Completado Filtro 2 (Técnico) -> Concluir entrevista después de que Carlos termine de hablar
           const closingText = (
             "Muchas gracias por tu exposición técnica. Hemos completado exitosamente ambos filtros del proceso de selección. " +
             "El Comité Evaluador de TalentLab está generando tu calificación integral y las conclusiones finales..."
           );
           setMessages(prev => [...prev, { role: 'ai', content: closingText }]);
-          speak(closingText, 'carlos');
-
-          setTimeout(() => {
-            handleConcludeProcess();
-          }, 2600);
+          speak(closingText, 'carlos', () => {
+            setTimeout(() => {
+              handleConcludeProcess();
+            }, 600);
+          });
         } else {
-          // Pregunta 2 Técnica
+          // Siguiente pregunta Técnica
           setMessages(prev => [...prev, { role: 'ai', content: aiText }]);
           speak(aiText, 'carlos');
         }
@@ -812,8 +892,7 @@ export default function Simulador() {
     setShowConclusionModal(false);
     setIsConcluding(false);
 
-    const initialQ = INTERVIEW_MODES.find(m => m.id === 'hr')?.initialQuestion || INTERVIEW_MODES[0].initialQuestion;
-    setMessages([{ role: 'ai', content: initialQ }]);
+    setMessages([]);
     setInputValue('');
     setScore(null);
     setBreakdown(null);
@@ -945,14 +1024,14 @@ export default function Simulador() {
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              opacity: interviewStage === 'stage1_hr' ? 1 : (hrTurns >= 2 ? 0.9 : 0.45)
+              opacity: interviewStage === 'stage1_hr' ? 1 : (hrTurns >= QUESTIONS_PER_FILTER ? 0.9 : 0.45)
             }}>
               <span style={{
                 width: '30px',
                 height: '30px',
                 borderRadius: '50%',
-                background: hrTurns >= 2 ? '#10b981' : (interviewStage === 'stage1_hr' ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255,255,255,0.06)'),
-                border: `2px solid ${hrTurns >= 2 ? '#10b981' : (interviewStage === 'stage1_hr' ? '#a855f7' : 'rgba(255,255,255,0.18)')}`,
+                background: hrTurns >= QUESTIONS_PER_FILTER ? '#10b981' : (interviewStage === 'stage1_hr' ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255,255,255,0.06)'),
+                border: `2px solid ${hrTurns >= QUESTIONS_PER_FILTER ? '#10b981' : (interviewStage === 'stage1_hr' ? '#a855f7' : 'rgba(255,255,255,0.18)')}`,
                 color: '#fff',
                 display: 'flex',
                 alignItems: 'center',
@@ -960,14 +1039,14 @@ export default function Simulador() {
                 fontSize: '0.82rem',
                 fontWeight: 700
               }}>
-                {hrTurns >= 2 ? <i className="fa-solid fa-check"></i> : '1'}
+                {hrTurns >= QUESTIONS_PER_FILTER ? <i className="fa-solid fa-check"></i> : '1'}
               </span>
               <div>
                 <div style={{ fontSize: '0.84rem', fontWeight: 700, color: interviewStage === 'stage1_hr' ? '#d8b4fe' : '#f1f5f9' }}>
                   Filtro 1: Habilidades Blandas
                 </div>
                 <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
-                  Dra. Carolina Ortiz · {Math.min(hrTurns, 2)}/2 preguntas
+                  Dra. Carolina Ortiz · {Math.min(hrTurns, QUESTIONS_PER_FILTER)}/{QUESTIONS_PER_FILTER} preguntas
                 </div>
               </div>
             </div>
@@ -979,14 +1058,14 @@ export default function Simulador() {
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              opacity: interviewStage === 'stage2_tech' ? 1 : (techTurns >= 2 ? 0.9 : 0.45)
+              opacity: interviewStage === 'stage2_tech' ? 1 : (techTurns >= QUESTIONS_PER_FILTER ? 0.9 : 0.45)
             }}>
               <span style={{
                 width: '30px',
                 height: '30px',
                 borderRadius: '50%',
-                background: techTurns >= 2 ? '#10b981' : (interviewStage === 'stage2_tech' ? 'rgba(6, 182, 212, 0.25)' : 'rgba(255,255,255,0.06)'),
-                border: `2px solid ${techTurns >= 2 ? '#10b981' : (interviewStage === 'stage2_tech' ? '#06b6d4' : 'rgba(255,255,255,0.18)')}`,
+                background: techTurns >= QUESTIONS_PER_FILTER ? '#10b981' : (interviewStage === 'stage2_tech' ? 'rgba(6, 182, 212, 0.25)' : 'rgba(255,255,255,0.06)'),
+                border: `2px solid ${techTurns >= QUESTIONS_PER_FILTER ? '#10b981' : (interviewStage === 'stage2_tech' ? '#06b6d4' : 'rgba(255,255,255,0.18)')}`,
                 color: '#fff',
                 display: 'flex',
                 alignItems: 'center',
@@ -994,14 +1073,14 @@ export default function Simulador() {
                 fontSize: '0.82rem',
                 fontWeight: 700
               }}>
-                {techTurns >= 2 ? <i className="fa-solid fa-check"></i> : '2'}
+                {techTurns >= QUESTIONS_PER_FILTER ? <i className="fa-solid fa-check"></i> : '2'}
               </span>
               <div>
                 <div style={{ fontSize: '0.84rem', fontWeight: 700, color: interviewStage === 'stage2_tech' ? '#38bdf8' : '#f1f5f9' }}>
                   Filtro 2: Prueba Técnica
                 </div>
                 <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
-                  Ing. Carlos Mendoza · {Math.min(techTurns, 2)}/2 preguntas
+                  Ing. Carlos Mendoza · {Math.min(techTurns, QUESTIONS_PER_FILTER)}/{QUESTIONS_PER_FILTER} preguntas
                 </div>
               </div>
             </div>
@@ -1112,7 +1191,7 @@ export default function Simulador() {
             </div>
           </div>
 
-          {/* Temporizadores Duales: Tiempo Total de Entrevista (6 min) y Límite por Respuesta (90s) */}
+          {/* Temporizadores Duales: Tiempo Efectivo de Entrevista (10 min, solo cuando el estudiante habla) y Límite por Respuesta (90s) */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
@@ -1126,17 +1205,29 @@ export default function Simulador() {
               background: 'rgba(255, 255, 255, 0.03)',
               border: '1px solid rgba(255, 255, 255, 0.08)'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
                 <span style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <i className="fa-regular fa-hourglass-half" style={{ color: '#38bdf8' }}></i> Tiempo Total de Entrevista:
+                  <i className="fa-regular fa-hourglass-half" style={{ color: '#38bdf8' }}></i> Tiempo de Entrevista (Solo cuando hablas):
                 </span>
-                <span style={{
-                  fontSize: '0.84rem',
-                  fontWeight: 700,
-                  color: totalSecondsLeft < 60 ? '#f87171' : totalSecondsLeft < 120 ? '#fbbf24' : '#38bdf8'
-                }}>
-                  {totalMm}:{totalSs} / 06:00
-                </span>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    fontSize: '0.68rem',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    background: isRecording && !speaking ? 'rgba(16, 185, 129, 0.18)' : 'rgba(148, 163, 184, 0.14)',
+                    color: isRecording && !speaking ? '#34d399' : '#94a3b8',
+                    fontWeight: 600
+                  }}>
+                    {speaking ? '⏸ Evaluador hablando' : isRecording ? '● Contando' : '⏸ En pausa'}
+                  </span>
+                  <span style={{
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                    color: totalSecondsLeft < 60 ? '#f87171' : totalSecondsLeft < 120 ? '#fbbf24' : '#38bdf8'
+                  }}>
+                    {totalMm}:{totalSs} / 10:00
+                  </span>
+                </div>
               </div>
               <div style={{ height: '4px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
                 <div style={{
@@ -1190,7 +1281,7 @@ export default function Simulador() {
                   />
                   <div>
                     <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#67e8f9' }}>Ing. Carlos Mendoza</span>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginLeft: '8px' }}>· Evaluador Técnico Senior (Filtro 2: Pregunta {Math.min(techTurns + 1, 2)} de 2)</span>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginLeft: '8px' }}>· Evaluador Técnico Senior (Filtro 2: Pregunta {Math.min(techTurns + 1, QUESTIONS_PER_FILTER)} de {QUESTIONS_PER_FILTER})</span>
                   </div>
                 </div>
                 <span style={{ fontSize: '0.73rem', padding: '3px 10px', borderRadius: '6px', background: 'rgba(6, 182, 212, 0.15)', color: '#67e8f9', fontWeight: 600 }}>
@@ -1243,79 +1334,16 @@ export default function Simulador() {
                 />
                 <div>
                   <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#d8b4fe' }}>Dra. Carolina Ortiz</span>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginLeft: '8px' }}>· Especialista Senior en Talento Humano (Filtro 1: Pregunta {Math.min(hrTurns + 1, 2)} de 2)</span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginLeft: '8px' }}>· Especialista Senior en Talento Humano (Filtro 1: Pregunta {Math.min(hrTurns + 1, QUESTIONS_PER_FILTER)} de {QUESTIONS_PER_FILTER})</span>
                 </div>
               </div>
-              <span style={{ fontSize: '0.73rem', padding: '3px 10px', borderRadius: '6px', background: 'rgba(168, 85, 247, 0.15)', color: '#d8b4fe', fontWeight: 600 }}>
-                Enfoque: Método STAR, Habilidades Blandas, Comunicación y Ética
-              </span>
-            </div>
-          )}
-
-          {/* Banner de Inicio de Entrevista (3, 2, 1) */}
-          {!hasStarted && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '18px',
-              padding: '12px 18px',
-              background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.12))',
-              borderRadius: '12px',
-              border: '1px solid rgba(16, 185, 129, 0.28)',
-              flexWrap: 'wrap',
-              gap: '12px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '50%',
-                  background: 'rgba(16, 185, 129, 0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#34d399',
-                  fontSize: '1rem'
-                }}>
-                  <i className="fa-solid fa-hourglass-start"></i>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.73rem', padding: '3px 10px', borderRadius: '6px', background: 'rgba(168, 85, 247, 0.15)', color: '#d8b4fe', fontWeight: 600 }}>
+                  Enfoque: Método STAR, Habilidades Blandas y Empatía
                 </span>
-                <div>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f1f5f9' }}>
-                    Simulación en Espera: ¿Listo para comenzar?
-                  </div>
-                  <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
-                    Ajusta tu postura, enfócate y presiona el botón para iniciar con conteo regresivo de 3, 2, 1.
-                  </div>
-                </div>
               </div>
-
-              <button
-                onClick={handleStartInterviewWithCountdown}
-                style={{
-                  padding: '9px 20px',
-                  borderRadius: '10px',
-                  background: 'linear-gradient(135deg, #10b981, #06b6d4)',
-                  border: 'none',
-                  color: '#fff',
-                  fontSize: '0.84rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
-                  transition: 'transform 0.2s'
-                }}
-              >
-                <i className="fa-solid fa-play"></i> Comenzar Entrevista (3, 2, 1)
-              </button>
             </div>
           )}
-
-          <h1 style={{ fontSize: '1.45rem', fontWeight: 700, marginBottom: '18px', lineHeight: 1.35 }}>
-            <span style={{ color: 'var(--secondary)' }}>{Q_TITLE}</span>{currentQuestion}
-          </h1>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
             
@@ -1529,13 +1557,45 @@ export default function Simulador() {
             </span>
           </div>
 
-          <div ref={chatRef} style={{ maxHeight: '130px', overflowY: 'auto', margin: '6px 0 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {messages.map((m, i) => (
-              <div key={i} style={{
-                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%', padding: '8px 12px', borderRadius: '12px', fontSize: '0.86rem',
-                background: m.role === 'user' ? 'rgba(6,182,212,0.15)' : 'rgba(139,92,246,0.15)'
-              }}>{m.content}</div>
-            ))}
+          <div ref={chatRef} style={{ maxHeight: '165px', minHeight: '72px', overflowY: 'auto', margin: '6px 0 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {!hasStarted && messages.length === 0 ? (
+              <div style={{
+                padding: '14px 16px',
+                borderRadius: '12px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px dashed rgba(255, 255, 255, 0.14)',
+                color: '#94a3b8',
+                fontSize: '0.84rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap'
+              }}>
+                <span>
+                  <i className="fa-solid fa-circle-info" style={{ color: '#38bdf8', marginRight: '8px' }}></i>
+                  La sala está lista. Haz clic en <strong>Iniciar Entrevista (3, 2, 1)</strong> arriba para que la evaluadora inicie el diálogo en vivo.
+                </span>
+              </div>
+            ) : (
+              messages.map((m, i) => (
+                <div key={i} style={{
+                  alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                  maxWidth: '88%',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  fontSize: '0.88rem',
+                  lineHeight: 1.45,
+                  background: m.role === 'user' ? 'rgba(6,182,212,0.16)' : 'rgba(139,92,246,0.16)',
+                  border: m.role === 'user' ? '1px solid rgba(6,182,212,0.3)' : '1px solid rgba(139,92,246,0.3)'
+                }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 700, marginBottom: '3px', color: m.role === 'user' ? '#38bdf8' : '#d8b4fe' }}>
+                    {m.role === 'user' ? 'Tú' : (interviewStage === 'stage2_tech' ? 'Ing. Carlos Mendoza' : 'Dra. Carolina Ortiz')}
+                  </div>
+                  {m.content}
+                </div>
+              ))
+            )}
             {isThinking && (
               <div style={{ fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                 <i className="fa-solid fa-spinner fa-spin"></i> El evaluador de IA está procesando tu respuesta…
@@ -1544,10 +1604,22 @@ export default function Simulador() {
           </div>
 
           <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-            <input className="form-control" style={{ flexGrow: 1 }} value={inputValue}
-              placeholder={isRecording ? "🎙 Escuchando tu voz... Habla con naturalidad (se enviará automáticamente)..." : "Escribe tu respuesta o presiona Grabar Voz para dictarla..."}
-              onChange={e => setInputValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} />
-            <button className="btn btn-primary" onClick={() => handleSend()} disabled={isThinking || !inputValue.trim()}>
+            <input
+              className="form-control"
+              style={{ flexGrow: 1, marginBottom: 0 }}
+              value={inputValue}
+              disabled={!hasStarted}
+              placeholder={
+                !hasStarted
+                  ? "Presiona 'Iniciar Entrevista (3, 2, 1)' para habilitar la respuesta..."
+                  : isRecording
+                    ? "🎙 Escuchando tu voz... Habla con naturalidad (se enviará automáticamente)..."
+                    : "Escribe tu respuesta o presiona Grabar Voz para dictarla..."
+              }
+              onChange={e => setInputValue(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && hasStarted && handleSend()}
+            />
+            <button className="btn btn-primary" onClick={() => handleSend()} disabled={!hasStarted || isThinking || !inputValue.trim()}>
               Enviar <i className="fa-solid fa-paper-plane"></i>
             </button>
           </div>
@@ -1557,6 +1629,7 @@ export default function Simulador() {
             <button 
               style={{
                 ...ctrlBtn(isRecording),
+                opacity: !hasStarted || !micOn ? 0.5 : 1,
                 ...(isRecording ? {
                   background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(6, 182, 212, 0.28))',
                   border: '1.5px solid #10b981',
@@ -1566,8 +1639,8 @@ export default function Simulador() {
                 } : {})
               }} 
               onClick={toggleRecording} 
-              disabled={!micOn} 
-              title={isRecording ? "Haz clic para finalizar y enviar tu respuesta de inmediato" : "Grabar respuesta por voz"}
+              disabled={!hasStarted || !micOn} 
+              title={!hasStarted ? "Primero presiona Iniciar Entrevista (3, 2, 1)" : isRecording ? "Haz clic para finalizar y enviar tu respuesta de inmediato" : "Grabar respuesta por voz"}
             >
               <i className={`fa-solid ${isRecording ? 'fa-paper-plane' : 'fa-microphone'}`}></i> 
               {isRecording ? 'Detener y Enviar' : 'Grabar Voz'}
@@ -1578,9 +1651,11 @@ export default function Simulador() {
             <button style={ctrlBtn(camOn)} onClick={toggleCamera}>
               <i className={`fa-solid ${camOn ? 'fa-video-slash' : 'fa-video'}`}></i> {camOn ? 'Apagar Cámara' : 'Cámara y Biometría'}
             </button>
-            <button style={ctrlBtn(false, true)} onClick={finish}>
-              <i className="fa-solid fa-xmark"></i> Finalizar Entrevista
-            </button>
+            {hasStarted && (
+              <button style={ctrlBtn(false, true)} onClick={finish}>
+                <i className="fa-solid fa-xmark"></i> Finalizar Entrevista
+              </button>
+            )}
             <button style={{ ...ctrlBtn(false), marginLeft: 'auto' }} onClick={() => setShowGuide(true)}>
               <i className="fa-solid fa-circle-question"></i> Guía
             </button>

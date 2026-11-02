@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import TalentLabLogo from './TalentLabLogo';
 
@@ -6,7 +6,32 @@ export default function StudentLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const session = JSON.parse(localStorage.getItem('user_session') || '{}');
+  const [session, setSession] = useState(() => JSON.parse(localStorage.getItem('user_session') || '{}'));
+
+  // Sincronización automática con la Base de Datos cuando el Directivo o Admin modifica datos del aprendiz
+  useEffect(() => {
+    const current = JSON.parse(localStorage.getItem('user_session') || '{}');
+    const email = current.email || 'estudiante@talentlab.edu';
+    fetch(`http://localhost:8000/api/auth/profile?email=${encodeURIComponent(email)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(dbProf => {
+        if (dbProf && dbProf.email) {
+          const updated = {
+            ...current,
+            fullName: dbProf.fullName || current.fullName,
+            institution: dbProf.institution || current.institution,
+            title: dbProf.title || current.title,
+            program: dbProf.program || current.program,
+            phone: dbProf.phone || current.phone,
+            department: dbProf.department || current.department
+          };
+          localStorage.setItem('user_session', JSON.stringify(updated));
+          setSession(updated);
+        }
+      })
+      .catch(() => {});
+  }, [location.pathname]);
+
   const rawName = session.role === 'student' ? (session.fullName || 'Diego Tapia') : 'Diego Tapia';
   const studentName = rawName.replace(/^Dra\.\s*/i, '');
   const institution = session.institution || 'SENA Centro de Tecnologías';

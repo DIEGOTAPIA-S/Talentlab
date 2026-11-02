@@ -533,6 +533,61 @@ def compute_risk(
     return level, prob, factor_desc
 
 
+def build_interview_summary_map(cursor) -> Dict[str, Dict[str, Any]]:
+    """
+    Construye un mapa consolidado de simulaciones de entrevista por correo de estudiante.
+    Prioriza el puntaje, rol, feedback y fecha de la última simulación presentada por el alumno
+    para que cualquier cambio en el Simulador IA se refleje en tiempo real en los módulos
+    e informes del Directivo Institucional y del Administrador General.
+    """
+    cursor.execute(
+        "UPDATE interview_history SET student_email = 'estudiante@talentlab.edu' WHERE LOWER(student_email) IN ('diego@talentlab.co', 'estudiante@talentlab.co')"
+    )
+    cursor.execute("SELECT * FROM interview_history ORDER BY id ASC")
+    rows = cursor.fetchall()
+    summary: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        email = (r["student_email"] or "").strip().lower()
+        if not email:
+            continue
+        sc = int(r["score"] or 0)
+        gr = int(r["grammar"] if r["grammar"] is not None else sc)
+        bd = int(r["body_language"] if r["body_language"] is not None else sc)
+        al = int(r["alignment"] if r["alignment"] is not None else sc)
+        if email not in summary:
+            summary[email] = {
+                "scores": [],
+                "grammars": [],
+                "bodies": [],
+                "alignments": [],
+                "latest": sc,
+                "avg": sc,
+                "count": 0,
+                "last_role": r["role_target"] or "Evaluación de Selección IA",
+                "last_feedback": r["feedback"] or "",
+                "last_date": r["created_at"] or "",
+                "grammar": gr,
+                "body": bd,
+                "alignment": al,
+                "has_simulated": True
+            }
+        entry = summary[email]
+        entry["scores"].append(sc)
+        entry["grammars"].append(gr)
+        entry["bodies"].append(bd)
+        entry["alignments"].append(al)
+        entry["latest"] = sc
+        entry["count"] = len(entry["scores"])
+        entry["avg"] = round(sum(entry["scores"]) / entry["count"])
+        entry["last_role"] = r["role_target"] or entry["last_role"]
+        entry["last_feedback"] = r["feedback"] or entry["last_feedback"]
+        entry["last_date"] = r["created_at"] or entry["last_date"]
+        entry["grammar"] = gr
+        entry["body"] = bd
+        entry["alignment"] = al
+    return summary
+
+
 app = FastAPI(
     title="TalentLab API Backend",
     description="API REST en Python (FastAPI) para Gestión de Matrícula, Semáforo Predictivo, Red de Egresados y Simulador de IA",
@@ -897,22 +952,24 @@ def get_user_profile(email: str):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM system_profiles WHERE LOWER(email) = ?", (email.lower(),))
     profile = cursor.fetchone()
-    if not profile:
-        cursor.execute("SELECT * FROM students WHERE LOWER(email) = ?", (email.lower(),))
-        st = cursor.fetchone()
-        conn.close()
-        if st:
-            return {
-                "email": st["email"],
-                "fullName": st["name"],
-                "role": "student",
-                "institution": st["institution"],
-                "title": f"Aprendiz - {st['program']}",
-                "phone": "+57 312 411 7048",
-                "department": "Formación Profesional"
-            }
-        raise HTTPException(status_code=404, detail="Perfil no encontrado.")
+    cursor.execute("SELECT * FROM students WHERE LOWER(email) = ?", (email.lower(),))
+    st = cursor.fetchone()
     conn.close()
+
+    if not profile and not st:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado.")
+
+    if st and (not profile or profile["role"] == "student"):
+        return {
+            "email": st["email"],
+            "fullName": st["name"],
+            "role": "student",
+            "institution": st["institution"] if "institution" in st.keys() and st["institution"] else (profile["institution"] if profile else "SENA - Centro de Tecnologías del Software"),
+            "program": st["program"],
+            "title": f"Aprendiz - {st['program']}",
+            "phone": (profile["phone"] if profile and profile["phone"] else "+57 312 411 7048"),
+            "department": (profile["department"] if profile and profile["department"] else "Formación Profesional")
+        }
 
     return {
         "email": profile["email"],
@@ -930,7 +987,7 @@ def update_user_profile(payload: ProfileUpdateRequest):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    cursor.execute("SELECT role FROM system_profiles WHERE LOWER(email) = ?", (payload.email.lower(),))
+    cursor.execute("SELECT role, full_name FROM system_profiles WHERE LOWER(email) = ?", (payload.email.lower(),))
     existing = cursor.fetchone()
     role_val = existing["role"] if existing else ("super_admin" if "admin@" in payload.email else ("admin_tenant" if "director" in payload.email or "rector" in payload.email or "coordinador" in payload.email else "student"))
 
@@ -954,8 +1011,22 @@ def update_user_profile(payload: ProfileUpdateRequest):
         payload.department or ""
     ))
 
-    # Si también existe como estudiante, mantener sincronizado su nombre e institución
-    cursor.execute("UPDATE students SET name = ?, institution = ? WHERE LOWER(email) = ?", (payload.fullName, payload.institution, payload.email.lower()))
+    # Si también existe como estudiante, mantener sincronizados su nombre, institución, programa y planes de apoyo
+    cursor.execute("SELECT id, name, program FROM students WHERE LOWER(email) = ?", (payload.email.lower(),))
+    st_row = cursor.fetchone()
+    if st_row:
+        old_name = st_row["name"]
+        clean_prog = (payload.title or "").replace("Aprendiz - ", "").replace("Aprendiz ", "").strip()
+        new_prog = clean_prog if len(clean_prog) > 3 else st_row["program"]
+        cursor.execute(
+            "UPDATE students SET name = ?, institution = ?, program = ? WHERE id = ?",
+            (payload.fullName, payload.institution, new_prog, st_row["id"])
+        )
+        if old_name and old_name != payload.fullName:
+            cursor.execute(
+                "UPDATE support_plans SET assigned_to = ? WHERE student_id = ? OR LOWER(assigned_to) = ?",
+                (payload.fullName, st_row["id"], old_name.lower())
+            )
 
     conn.commit()
     conn.close()
@@ -985,8 +1056,7 @@ def get_all_ecosystem_users(role_filter: Optional[str] = None, institution: Opti
     cursor.execute("SELECT * FROM students ORDER BY id DESC")
     student_rows = cursor.fetchall()
 
-    cursor.execute("SELECT student_email, AVG(score) as avg_iv, COUNT(*) as iv_count FROM interview_history GROUP BY student_email")
-    iv_map = {r["student_email"].lower(): {"avg": round(r["avg_iv"]), "count": r["iv_count"]} for r in cursor.fetchall()}
+    iv_map = build_interview_summary_map(cursor)
 
     cursor.execute("SELECT student_email, assigned_to, COUNT(*) as plan_count FROM support_plans GROUP BY student_email, assigned_to")
     plan_rows = cursor.fetchall()
@@ -1048,7 +1118,7 @@ def get_all_ecosystem_users(role_filter: Optional[str] = None, institution: Opti
             q = search.lower()
             if q not in st["name"].lower() and q not in st["email"].lower() and q not in st["institution"].lower() and q not in st["program"].lower():
                 continue
-        iv_info = iv_map.get(st["email"].lower(), {"avg": None, "count": 0})
+        iv_info = iv_map.get(st["email"].lower(), {"latest": None, "avg": None, "count": 0, "has_simulated": False, "last_date": "", "last_role": "", "last_feedback": ""})
         p_count = sum(r["plan_count"] for r in plan_rows if (r["student_email"] and r["student_email"].lower() == st["email"].lower()) or r["assigned_to"].lower() == st["name"].lower())
         students_list.append({
             "uid": f"student:{st['id']}",
@@ -1067,8 +1137,13 @@ def get_all_ecosystem_users(role_filter: Optional[str] = None, institution: Opti
             "risk": st["risk_level"],
             "risk_probability": f"{int(st['risk_probability'] * 100)}%",
             "factor": st["primary_factor"],
-            "interview_score": iv_info["avg"],
+            "interview_score": iv_info["latest"],
+            "interview_avg": iv_info["avg"],
             "interview_count": iv_info["count"],
+            "has_simulated": bool(iv_info["has_simulated"]),
+            "last_interview_date": iv_info["last_date"],
+            "last_interview_role": iv_info["last_role"],
+            "last_interview_feedback": iv_info["last_feedback"],
             "plans_count": p_count,
             "status": st["status"]
         })
@@ -1457,6 +1532,57 @@ def admin_delete_institution(inst_id: int):
     conn.close()
     return {"message": f"Institución '{inst_name}' y sus registros asociados eliminados del sistema."}
 
+@app.get("/api/institutions/programs")
+def get_institution_programs(institution: Optional[str] = None):
+    """
+    Devuelve el catálogo vivo de programas académicos registrados en 'institutions' y 'students'
+    para que cualquier programa agregado por el Administrador General aparezca inmediatamente
+    en los selectores del Directivo (Estudiantes y Egresados).
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    programs_set = []
+    if institution and institution != "todas":
+        cursor.execute("SELECT programs_json FROM institutions WHERE LOWER(name) = ?", (institution.strip().lower(),))
+    else:
+        cursor.execute("SELECT programs_json FROM institutions")
+
+    for r in cursor.fetchall():
+        try:
+            items = json.loads(r["programs_json"] or "[]")
+            for p in items:
+                if p and p.strip() and p.strip() not in programs_set:
+                    programs_set.append(p.strip())
+        except Exception:
+            pass
+
+    if institution and institution != "todas":
+        cursor.execute("SELECT DISTINCT program FROM students WHERE LOWER(institution) = ?", (institution.strip().lower(),))
+    else:
+        cursor.execute("SELECT DISTINCT program FROM students")
+    for r in cursor.fetchall():
+        p = (r["program"] or "").strip()
+        if p and p not in programs_set:
+            programs_set.append(p)
+
+    # Si no se hallaron programas específicos de esa sede, incluir el catálogo base institucional
+    defaults = [
+        "Tecnólogo en ADSO",
+        "Desarrollo de Software",
+        "Diseño Gráfico Digital",
+        "Tecnólogo en Gestión Empresarial",
+        "Tecnólogo en Contabilidad y Finanzas",
+        "Ingeniería de Sistemas"
+    ]
+    for d in defaults:
+        if d not in programs_set:
+            programs_set.append(d)
+
+    conn.close()
+    return {"programs": programs_set}
+
 # 4. GESTIÓN CRUD DE ESTUDIANTES (FILTRADO POR INSTITUCIÓN PARA DIRECTIVOS Y GLOBAL PARA ADMIN)
 @app.get("/api/students")
 def get_students(search: Optional[str] = None, risk: Optional[str] = None, institution: Optional[str] = None, program: Optional[str] = None):
@@ -1488,17 +1614,18 @@ def get_students(search: Optional[str] = None, risk: Optional[str] = None, insti
     cursor.execute(query, params)
     rows = cursor.fetchall()
 
-    cursor.execute("SELECT student_email, AVG(score) as avg_iv FROM interview_history GROUP BY student_email")
-    iv_map = {r["student_email"].lower(): round(r["avg_iv"]) for r in cursor.fetchall()}
+    iv_map = build_interview_summary_map(cursor)
 
     cursor.execute("SELECT student_email, assigned_to, COUNT(*) as cnt FROM support_plans GROUP BY student_email, assigned_to")
     plan_rows = cursor.fetchall()
+    conn.commit()
     conn.close()
 
     students = []
     for r in rows:
         p_count = sum(pr["cnt"] for pr in plan_rows if (pr["student_email"] and pr["student_email"].lower() == r["email"].lower()) or pr["assigned_to"].lower() == r["name"].lower())
-        iv_sc = iv_map.get(r["email"].lower())
+        iv_info = iv_map.get(r["email"].lower(), {"latest": None, "avg": None, "count": 0, "has_simulated": False, "last_date": "", "last_role": "", "last_feedback": ""})
+        iv_sc = iv_info["latest"]
         emo_st = r["emotional_status"] if "emotional_status" in r.keys() and r["emotional_status"] else "Estable"
         abs_cnt = r["absences_count"] if "absences_count" in r.keys() and r["absences_count"] is not None else max(0, round((100.0 - r["attendance"]) / 4.0))
         _, _, _, breakdown = compute_risk_detailed(
@@ -1528,6 +1655,12 @@ def get_students(search: Optional[str] = None, risk: Optional[str] = None, insti
             "status": r["status"],
             "score": f"{int(r['risk_probability'] * 100)}%",
             "interview_score": iv_sc,
+            "interview_avg": iv_info["avg"],
+            "interviews_count": iv_info["count"],
+            "has_simulated": bool(iv_info["has_simulated"]),
+            "last_interview_date": iv_info["last_date"],
+            "last_interview_role": iv_info["last_role"],
+            "last_interview_feedback": iv_info["last_feedback"],
             "plans_count": p_count
         })
 
@@ -1656,6 +1789,39 @@ def update_student(student_id: int, payload: StudentUpdateRequest):
         WHERE LOWER(email) = ?
     ''', (new_email, new_name, new_institution, f"Aprendiz - {new_program}", new_status, old_email.lower()))
 
+    # Propagación en cascada a Planes de Apoyo, Historial de Entrevistas y Sesiones de Mentoría
+    old_name = student["name"] or ""
+    cursor.execute('''
+        UPDATE support_plans
+        SET assigned_to = ?, student_email = ?, institution = ?
+        WHERE student_id = ? OR LOWER(student_email) = ? OR LOWER(assigned_to) = ?
+    ''', (new_name, new_email, new_institution, student_id, old_email.lower(), old_name.lower()))
+
+    cursor.execute('''
+        UPDATE interview_history
+        SET student_email = ?
+        WHERE LOWER(student_email) = ?
+    ''', (new_email, old_email.lower()))
+
+    cursor.execute('''
+        UPDATE mentorship_sessions
+        SET student_name = ?, student_email = ?
+        WHERE LOWER(student_email) = ?
+    ''', (new_name, new_email, old_email.lower()))
+
+    # Asegurar que el nuevo programa figure también en el catálogo de la institución
+    if new_institution and new_program:
+        cursor.execute("SELECT id, programs_json FROM institutions WHERE LOWER(name) = ?", (new_institution.strip().lower(),))
+        inst_row = cursor.fetchone()
+        if inst_row:
+            try:
+                progs = json.loads(inst_row["programs_json"] or "[]")
+            except Exception:
+                progs = []
+            if new_program.strip() not in progs:
+                progs.append(new_program.strip())
+                cursor.execute("UPDATE institutions SET programs_json = ? WHERE id = ?", (json.dumps(progs, ensure_ascii=False), inst_row["id"]))
+
     conn.commit()
     conn.close()
 
@@ -1782,21 +1948,22 @@ def get_risk_semaphore(institution: Optional[str] = None):
         cursor.execute("SELECT * FROM students ORDER BY id DESC")
     rows = cursor.fetchall()
 
-    cursor.execute("SELECT student_email, AVG(score) as avg_iv, COUNT(*) as cnt FROM interview_history GROUP BY student_email")
-    iv_map = {r["student_email"].lower(): {"avg": round(r["avg_iv"]), "cnt": r["cnt"]} for r in cursor.fetchall()}
+    iv_map = build_interview_summary_map(cursor)
 
     if institution and institution != "todas":
         cursor.execute("SELECT COUNT(*) FROM support_plans WHERE institution = ?", (institution,))
     else:
         cursor.execute("SELECT COUNT(*) FROM support_plans")
     plans_count = cursor.fetchone()[0]
+    conn.commit()
     conn.close()
 
     total = len(rows)
     high = sum(1 for r in rows if r["risk_level"] == "alto")
     medium = sum(1 for r in rows if r["risk_level"] == "medio")
     low = sum(1 for r in rows if r["risk_level"] == "bajo")
-    total_sims = sum(iv_map.get(r["email"].lower(), {}).get("cnt", 0) for r in rows)
+    total_sims = sum(iv_map.get(r["email"].lower(), {}).get("count", 0) for r in rows)
+    simulated_students = sum(1 for r in rows if iv_map.get(r["email"].lower(), {}).get("has_simulated"))
 
     retention_num = 94
     if total > 0:
@@ -1813,10 +1980,17 @@ def get_risk_semaphore(institution: Optional[str] = None):
             "institution": r["institution"],
             "attendance": r["attendance"],
             "academic_score": r["academic_score"],
+            "emotional_status": r["emotional_status"] if "emotional_status" in r.keys() and r["emotional_status"] else "Estable",
             "risk": r["risk_level"],
             "factor": r["primary_factor"],
             "score": f"{int(r['risk_probability'] * 100)}%",
-            "interview_score": iv_data.get("avg")
+            "interview_score": iv_data.get("latest"),
+            "interview_avg": iv_data.get("avg"),
+            "interviews_count": iv_data.get("count", 0),
+            "has_simulated": bool(iv_data.get("has_simulated", False)),
+            "last_interview_date": iv_data.get("last_date", ""),
+            "last_interview_role": iv_data.get("last_role", ""),
+            "last_interview_feedback": iv_data.get("last_feedback", "")
         })
 
     return {
@@ -1825,7 +1999,8 @@ def get_risk_semaphore(institution: Optional[str] = None):
         "mediumRiskCount": medium,
         "lowRiskCount": low,
         "retentionRate": f"{retention_num}%",
-        "simulationsCount": max(total_sims, len(rows) * 2),
+        "simulationsCount": max(total_sims, len(rows)),
+        "simulatedStudentsCount": simulated_students,
         "activePlansCount": plans_count,
         "students": students_list
     }
@@ -1835,7 +2010,7 @@ def _aggregate(rows, interviews):
     n = len(rows)
     if n == 0:
         return None
-    emails = [r["email"] for r in rows]
+    emails = [r["email"].lower() for r in rows]
     iv = [interviews[e] for e in emails if e in interviews]
     return {
         "total": n,
@@ -1846,7 +2021,7 @@ def _aggregate(rows, interviews):
         "avgScore": round(sum(r["academic_score"] for r in rows) / n, 1),
         "avgRiskProbability": round(sum(r["risk_probability"] for r in rows) / n * 100),
         "interviewedStudents": len(iv),
-        "avgInterview": round(sum(x["avg"] for x in iv) / len(iv)) if iv else None,
+        "avgInterview": round(sum(x["latest"] for x in iv) / len(iv)) if iv else None,
         "avgGrammar": round(sum(x["grammar"] for x in iv) / len(iv)) if iv else None,
         "avgBodyLanguage": round(sum(x["body"] for x in iv) / len(iv)) if iv else None,
         "avgAlignment": round(sum(x["alignment"] for x in iv) / len(iv)) if iv else None,
@@ -1861,18 +2036,8 @@ def get_consolidated(institution: Optional[str] = None, program: Optional[str] =
     cursor.execute("SELECT * FROM students")
     all_rows = cursor.fetchall()
 
-    cursor.execute('''
-        SELECT student_email,
-               AVG(score) AS avg_score,
-               AVG(COALESCE(grammar, score)) AS grammar,
-               AVG(COALESCE(body_language, score)) AS body,
-               AVG(COALESCE(alignment, score)) AS alignment
-        FROM interview_history GROUP BY student_email
-    ''')
-    interviews = {
-        r["student_email"]: {"avg": r["avg_score"], "grammar": r["grammar"], "body": r["body"], "alignment": r["alignment"]}
-        for r in cursor.fetchall()
-    }
+    interviews = build_interview_summary_map(cursor)
+    conn.commit()
     conn.close()
 
     rows = [
@@ -1904,11 +2069,25 @@ def get_consolidated(institution: Optional[str] = None, program: Optional[str] =
 
     students = []
     for r in rows:
-        iv = interviews.get(r["email"])
+        iv = interviews.get(r["email"].lower())
         students.append({
-            "id": r["id"], "name": r["name"], "institution": r["institution"], "program": r["program"],
-            "attendance": r["attendance"], "academic_score": r["academic_score"], "risk": r["risk_level"],
-            "interviewScore": round(iv["avg"]) if iv else None,
+            "id": r["id"],
+            "name": r["name"],
+            "email": r["email"],
+            "institution": r["institution"],
+            "program": r["program"],
+            "attendance": r["attendance"],
+            "academic_score": r["academic_score"],
+            "emotional_status": r["emotional_status"] if "emotional_status" in r.keys() and r["emotional_status"] else "Estable",
+            "risk": r["risk_level"],
+            "risk_probability": f"{int(r['risk_probability'] * 100)}%",
+            "factor": r["primary_factor"],
+            "interviewScore": iv["latest"] if iv else None,
+            "interviewsCount": iv["count"] if iv else 0,
+            "hasSimulated": bool(iv["has_simulated"]) if iv else False,
+            "lastInterviewDate": iv["last_date"] if iv else "",
+            "lastInterviewRole": iv["last_role"] if iv else "",
+            "lastInterviewFeedback": iv["last_feedback"] if iv else "",
         })
 
     return {
@@ -2135,13 +2314,122 @@ def suggest_improvement_plan_ai(student_id: int = Body(..., embed=True)):
             )
         }
 
-# 7. EMPAREJAMIENTO INTELIGENTE DE MENTORÍAS CON IA
+# 7. EMPAREJAMIENTO INTELIGENTE DE MENTORÍAS CON IA Y RESUMEN INTEGRAL DEL ESTUDIANTE
+def sync_graduate_mentors(cursor):
+    """
+    Sincroniza automáticamente todos los egresados marcados como mentores (is_mentor = 1)
+    en la tabla 'graduates' (gestionada por el Directivo) hacia la tabla 'mentors'
+    (consultada por los Estudiantes en Mis Mentorías IA).
+    """
+    cursor.execute("SELECT * FROM graduates WHERE is_mentor = 1")
+    grad_mentors = cursor.fetchall()
+    for gm in grad_mentors:
+        cursor.execute("SELECT id FROM mentors WHERE LOWER(email) = ?", (gm["email"].lower(),))
+        if not cursor.fetchone():
+            parts = [p for p in (gm["name"] or "ME").split() if p]
+            initials = "".join([p[0].upper() for p in parts[:2]]) or "ME"
+            years_exp = max(1, datetime.now().year - int(gm["grad_year"] or 2023))
+            specialty = f"{gm['current_role']} · {gm['program']}"
+            cursor.execute('''
+                INSERT INTO mentors (name, email, program, company, role_title, specialty, experience_years, rating, sessions_completed, available, avatar_initials)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 4.9, 8, 1, ?)
+            ''', (
+                gm["name"],
+                gm["email"],
+                gm["program"],
+                gm["company"],
+                gm["current_role"],
+                specialty,
+                years_exp,
+                initials
+            ))
+
+@app.get("/api/student/summary")
+def get_student_summary(email: str):
+    """
+    Devuelve la ficha institucional en vivo del estudiante desde SQLite:
+    - Estado académico, asistencia y semáforo de permanencia (tabla students)
+    - Última simulación de entrevista y total de simulaciones (tabla interview_history)
+    - Total de sesiones de mentoría agendadas (tabla mentorship_sessions)
+    """
+    clean_email = (email or "estudiante@talentlab.edu").strip().lower()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM students WHERE LOWER(email) = ?", (clean_email,))
+    st = cursor.fetchone()
+    if not st:
+        cursor.execute("SELECT * FROM students ORDER BY id ASC LIMIT 1")
+        st = cursor.fetchone()
+
+    cursor.execute(
+        "SELECT * FROM interview_history WHERE LOWER(student_email) = ? ORDER BY id DESC LIMIT 1",
+        (clean_email,)
+    )
+    last_iv = cursor.fetchone()
+
+    cursor.execute(
+        "SELECT COUNT(*) as total FROM interview_history WHERE LOWER(student_email) = ?",
+        (clean_email,)
+    )
+    iv_count_row = cursor.fetchone()
+    iv_count = int(iv_count_row["total"]) if iv_count_row else 0
+
+    cursor.execute(
+        "SELECT COUNT(*) as total FROM mentorship_sessions WHERE LOWER(student_email) = ?",
+        (clean_email,)
+    )
+    ment_count_row = cursor.fetchone()
+    ment_count = int(ment_count_row["total"]) if ment_count_row else 0
+
+    conn.close()
+
+    student_info = None
+    if st:
+        st_keys = st.keys()
+        student_info = {
+            "id": st["id"],
+            "name": st["name"],
+            "email": st["email"],
+            "institution": st["institution"] if "institution" in st_keys else "SENA - Centro de Tecnologías",
+            "program": st["program"],
+            "attendance": st["attendance"],
+            "academic_score": st["academic_score"],
+            "risk_level": st["risk_level"],
+            "risk_probability": st["risk_probability"],
+            "primary_factor": st["primary_factor"],
+            "emotional_status": st["emotional_status"] if "emotional_status" in st_keys else "Estable",
+            "status": st["status"]
+        }
+
+    latest_interview = None
+    if last_iv:
+        latest_interview = {
+            "score": last_iv["score"],
+            "role_target": last_iv["role_target"],
+            "feedback": last_iv["feedback"],
+            "grammar": last_iv["grammar"],
+            "body_language": last_iv["body_language"],
+            "alignment": last_iv["alignment"],
+            "created_at": last_iv["created_at"]
+        }
+
+    return {
+        "student": student_info,
+        "latest_interview": latest_interview,
+        "interview_count": iv_count,
+        "mentorship_count": ment_count
+    }
+
 @app.get("/api/mentors")
 def get_mentors():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM mentors WHERE available = 1 ORDER BY rating DESC")
+    sync_graduate_mentors(cursor)
+    conn.commit()
+    cursor.execute("SELECT * FROM mentors WHERE available = 1 ORDER BY rating DESC, id DESC")
     rows = cursor.fetchall()
     conn.close()
 
@@ -2166,42 +2454,70 @@ def get_mentors():
 def match_mentors_ai(payload: MentorshipMatchRequest):
     """
     Algoritmo de emparejamiento con IA:
-    Calcula coincidencia de perfil entre metas del aprendiz y experiencia de egresados SENA.
+    Calcula coincidencia de perfil entre programa, metas y brechas del aprendiz frente a la red de mentores egresados.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    sync_graduate_mentors(cursor)
+    conn.commit()
     cursor.execute("SELECT * FROM mentors WHERE available = 1")
     mentors = cursor.fetchall()
     conn.close()
 
     matched = []
-    goal_lower = payload.goal.lower()
+    goal_lower = (payload.goal or "").lower()
+    prog_lower = (payload.student_program or "").lower()
+    prio_terms = [p.lower() for p in (payload.priorities or [])]
 
     for m in mentors:
-        base_affinity = 75
+        base_affinity = 76
         reasons = []
+        m_prog = (m["program"] or "").lower()
+        spec_lower = f"{m['specialty'] or ''} {m['role_title'] or ''}".lower()
 
-        if payload.student_program.lower() in m["program"].lower():
-            base_affinity += 12
-            reasons.append(f"Graduado del mismo programa ({m['program']})")
+        # 1. Coincidencia por programa académico o área formativa
+        if (
+            prog_lower in m_prog
+            or m_prog in prog_lower
+            or (any(k in prog_lower for k in ["adso", "software", "sistemas"]) and any(k in m_prog for k in ["adso", "software", "sistemas"]))
+            or (any(k in prog_lower for k in ["gestión", "gestion", "contable", "administración", "finanzas"]) and any(k in m_prog for k in ["gestión", "gestion", "contable", "administración", "finanzas"]))
+            or (any(k in prog_lower for k in ["red", "infraestructura", "telecom"]) and any(k in m_prog for k in ["red", "infraestructura", "telecom"]))
+            or (any(k in prog_lower for k in ["diseño", "diseno", "multimedia"]) and any(k in m_prog for k in ["diseño", "diseno", "multimedia"]))
+        ):
+            base_affinity += 11
+            reasons.append(f"Egresado afín a tu programa ({m['program']})")
 
-        spec_lower = m["specialty"].lower()
-        if any(term in goal_lower for term in ["react", "web", "frontend", "arquitectura"]) and "react" in spec_lower:
-            base_affinity += 10
-            reasons.append("Especialista en Frontend y Arquitectura React")
-        if any(term in goal_lower for term in ["backend", "api", "python", "datos"]) and "python" in spec_lower:
-            base_affinity += 10
-            reasons.append("Dominio experto en APIs con FastAPI y Bases de Datos")
-        if any(term in goal_lower for term in ["empleo", "entrevista", "productiva", "empresa"]):
+        # 2. Coincidencia con objetivo vocacional o especialidad técnica
+        if any(term in goal_lower for term in ["react", "web", "frontend", "arquitectura", "ui", "ux", "diseño"]) and any(k in spec_lower for k in ["react", "frontend", "web", "ux", "ui", "full stack"]):
+            base_affinity += 9
+            reasons.append("Especialista en Arquitectura Frontend, Web & UX/UI")
+        if any(term in goal_lower for term in ["backend", "api", "python", "datos", "sql", "arquitectura"]) and any(k in spec_lower for k in ["python", "backend", "datos", "cloud", "arquitectura", "full stack"]):
+            base_affinity += 9
+            reasons.append("Dominio práctico en Backend, APIs y Bases de Datos")
+        if any(term in goal_lower for term in ["red", "cloud", "seguridad", "devops", "docker", "infraestructura"]) and any(k in spec_lower for k in ["cloud", "seguridad", "redes", "devops", "infraestructura", "sistemas"]):
+            base_affinity += 9
+            reasons.append("Especialista en Cloud, Redes, DevOps y Ciberseguridad")
+        if any(term in goal_lower for term in ["gestión", "gestion", "financ", "indicadores", "procesos", "administr"]) and any(k in spec_lower for k in ["gestión", "gestion", "financ", "analista", "proyectos", "líder", "lider"]):
+            base_affinity += 9
+            reasons.append("Experiencia liderando procesos empresariales y KPIs")
+        if any(term in goal_lower for term in ["empleo", "entrevista", "productiva", "empresa", "star", "salario"]):
             base_affinity += 8
-            reasons.append(f"Experiencia consolidada en la industria ({m['company']})")
+            reasons.append(f"Trayectoria comprobada en selección e industria ({m['company']})")
+
+        # 3. Coincidencia con prioridades / recomendaciones del Simulador IA
+        if any(pt in spec_lower or pt in m_prog for pt in prio_terms if len(pt) > 3):
+            base_affinity += 5
+            reasons.append("Alineado con tus recomendaciones del Simulador IA")
 
         if m["rating"] >= 4.9:
-            base_affinity += 5
-            reasons.append("Calificación de mentoría sobresaliente (5.0 / 5)")
+            base_affinity += 4
+            reasons.append(f"Calificación de mentoría sobresaliente ({m['rating']} / 5.0)")
 
-        final_affinity = min(max(base_affinity, 70), 98)
+        if not reasons:
+            reasons.append(f"Mentor activo en {m['company']} ({m['role_title']})")
+
+        final_affinity = min(max(base_affinity, 72), 98)
 
         matched.append({
             "id": m["id"],
@@ -2329,6 +2645,7 @@ def get_graduates(search: Optional[str] = None, program: Optional[str] = None):
 @app.post("/api/graduates", status_code=201)
 def create_graduate(payload: GraduateCreateRequest):
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO graduates (name, email, program, grad_year, company, current_role, linkedin_url, is_mentor, status)
@@ -2344,9 +2661,67 @@ def create_graduate(payload: GraduateCreateRequest):
         payload.is_mentor or 1
     ))
     new_id = cursor.lastrowid
+    sync_graduate_mentors(cursor)
     conn.commit()
     conn.close()
-    return {"message": "Egresado registrado exitosamente en la Red TalentLab.", "id": new_id}
+    return {"message": "Egresado registrado y sincronizado en la Red de Mentores TalentLab.", "id": new_id}
+
+@app.put("/api/graduates/{grad_id}")
+def update_graduate(grad_id: int, payload: Dict[str, Any] = Body(...)):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM graduates WHERE id = ?", (grad_id,))
+    grad = cursor.fetchone()
+    if not grad:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Egresado no encontrado.")
+
+    new_name = payload.get("name", grad["name"])
+    new_email = payload.get("email", grad["email"])
+    new_prog = payload.get("program", grad["program"])
+    new_year = int(payload.get("grad_year", grad["grad_year"]))
+    new_comp = payload.get("company", grad["company"])
+    new_role = payload.get("current_role", grad["current_role"])
+    new_link = payload.get("linkedin_url", grad["linkedin_url"])
+    new_mentor = int(payload.get("is_mentor", grad["is_mentor"]))
+
+    cursor.execute('''
+        UPDATE graduates
+        SET name = ?, email = ?, program = ?, grad_year = ?, company = ?, current_role = ?, linkedin_url = ?, is_mentor = ?
+        WHERE id = ?
+    ''', (new_name, new_email, new_prog, new_year, new_comp, new_role, new_link, new_mentor, grad_id))
+
+    if new_mentor == 1:
+        sync_graduate_mentors(cursor)
+        cursor.execute('''
+            UPDATE mentors
+            SET name = ?, email = ?, program = ?, company = ?, role_title = ?, specialty = ?, available = 1
+            WHERE LOWER(email) = ?
+        ''', (new_name, new_email, new_prog, new_comp, new_role, f"{new_role} · {new_prog}", grad["email"].lower()))
+    else:
+        cursor.execute("UPDATE mentors SET available = 0 WHERE LOWER(email) = ?", (grad["email"].lower(),))
+
+    conn.commit()
+    conn.close()
+    return {"message": "Datos del egresado y estado de Mentor IA sincronizados exitosamente."}
+
+@app.delete("/api/graduates/{grad_id}")
+def delete_graduate(grad_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM graduates WHERE id = ?", (grad_id,))
+    grad = cursor.fetchone()
+    if not grad:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Egresado no encontrado.")
+
+    cursor.execute("DELETE FROM graduates WHERE id = ?", (grad_id,))
+    cursor.execute("DELETE FROM mentors WHERE LOWER(email) = ?", (grad["email"].lower(),))
+    conn.commit()
+    conn.close()
+    return {"message": "Egresado eliminado y desvinculado del directorio de mentores."}
 
 # 9. SIMULADOR DE ENTREVISTAS CON IA (GEMINI REST API + MOTOR CONTEXTUAL LOCAL)
 def check_response_quality(user_text: str, mode: str, prog: str) -> Dict[str, Any]:
@@ -2889,11 +3264,45 @@ def simulate_interview(payload: InterviewRequest):
 
     try:
         conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
+        st_email = (payload.student_id or "estudiante@talentlab.edu").strip().lower()
+        if st_email in ("diego@talentlab.co", "estudiante@talentlab.co"):
+            st_email = "estudiante@talentlab.edu"
+        if st_email in ("diego@talentlab.co", "estudiante@talentlab.co"):
+            st_email = "estudiante@talentlab.edu"
         cursor.execute('''
             INSERT INTO interview_history (student_email, score, role_target, feedback, grammar, body_language, alignment)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (payload.student_id or "estudiante@talentlab.edu", final_score, target_role, primary_feedback, grammar, body_language, alignment))
+        ''', (st_email, final_score, target_role, primary_feedback, grammar, body_language, alignment))
+
+        # Recalibrar en tiempo real el semáforo de permanencia del estudiante tras cada respuesta evaluada
+        cursor.execute("SELECT * FROM students WHERE LOWER(email) = ?", (st_email,))
+        st_row = cursor.fetchone()
+        if st_row:
+            if is_hostile or final_score < 50:
+                new_emo = "Crisis Personal / Emocional"
+            elif final_score < 68:
+                new_emo = "Desmotivación Vocacional"
+            elif final_score >= 78:
+                new_emo = "Estable"
+            else:
+                new_emo = st_row["emotional_status"] if "emotional_status" in st_row.keys() and st_row["emotional_status"] else "Estable"
+
+            r_lvl, r_prob, r_factor = compute_risk(
+                attendance=st_row["attendance"],
+                academic_score=st_row["academic_score"],
+                stratum=st_row["stratum"],
+                has_financial_aid=st_row["has_financial_aid"],
+                emotional_status=new_emo,
+                interview_score=final_score
+            )
+            cursor.execute('''
+                UPDATE students
+                SET emotional_status = ?, risk_level = ?, risk_probability = ?, primary_factor = ?
+                WHERE id = ?
+            ''', (new_emo, r_lvl, r_prob, r_factor, st_row["id"]))
+
         conn.commit()
         conn.close()
     except Exception as e:
@@ -3052,6 +3461,8 @@ def conclude_interview(payload: InterviewConclusionRequest):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         st_email = (payload.student_id or "estudiante@talentlab.edu").strip().lower()
+        if st_email in ("diego@talentlab.co", "estudiante@talentlab.co"):
+            st_email = "estudiante@talentlab.edu"
         cursor.execute('''
             INSERT INTO interview_history (student_email, score, role_target, feedback, grammar, body_language, alignment)
             VALUES (?, ?, ?, ?, ?, ?, ?)
