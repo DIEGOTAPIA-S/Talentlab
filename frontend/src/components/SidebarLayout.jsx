@@ -141,6 +141,11 @@ export default function SidebarLayout() {
 
         <div>
           <div className="sidebar-item">
+            <Link to="/" style={{ color: '#94a3b8' }}>
+              <i className="fa-solid fa-house"></i> Página de Inicio
+            </Link>
+          </div>
+          <div className="sidebar-item">
             <a href="#" onClick={handleLogout} style={{ color: 'var(--color-danger)' }}>
               <i className="fa-solid fa-arrow-right-from-bracket"></i> Cerrar Sesión
             </a>

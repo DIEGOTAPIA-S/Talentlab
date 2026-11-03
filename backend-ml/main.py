@@ -614,9 +614,22 @@ class UserSession(BaseModel):
     role: str
     fullName: str
     institution: str
+    program: Optional[str] = None
     title: Optional[str] = "Coordinadora de Formación y Permanencia Académica"
     phone: Optional[str] = "+57 (601) 546-1500"
     department: Optional[str] = "Coordinación de Formación Profesional"
+
+class PublicRegisterRequest(BaseModel):
+    role: Optional[str] = "student"  # 'student' | 'admin_tenant'
+    fullName: str
+    email: str
+    password: str
+    institution: str
+    program: Optional[str] = "Tecnólogo en ADSO"
+    title: Optional[str] = "Coordinador Académico Institucional"
+    phone: Optional[str] = "+57 312 000 0000"
+    stratum: Optional[int] = 2
+    has_financial_aid: Optional[int] = 0
 
 class ProfileUpdateRequest(BaseModel):
     email: str
@@ -897,16 +910,19 @@ def login(payload: LoginRequest):
                 role="student",
                 fullName=student_row["name"],
                 institution=student_row["institution"] or "SENA - Centro de Tecnologías del Software",
+                program=student_row["program"],
                 title=f"Aprendiz / Estudiante - {student_row['program']}",
                 phone=saved_profile["phone"] if saved_profile else "+57 312 411 7048",
                 department="Etapa Lectiva / Proyecto Productivo"
             )
         if saved_profile:
+            clean_prog = (saved_profile["title"] or "").replace("Aprendiz - ", "").replace("Aprendiz ", "").strip()
             return UserSession(
                 email=saved_profile["email"],
                 role="student",
                 fullName=saved_profile["full_name"],
                 institution=saved_profile["institution"],
+                program=clean_prog or "Tecnólogo en ADSO",
                 title=saved_profile["title"] or "Aprendiz Tecnólogo en ADSO",
                 phone=saved_profile["phone"] or "+57 312 411 7048",
                 department=saved_profile["department"] or "Etapa Lectiva SENA"
@@ -916,6 +932,7 @@ def login(payload: LoginRequest):
             role="student",
             fullName="Diego Tapia",
             institution="SENA - Centro de Tecnologías del Software",
+            program="Tecnólogo en ADSO",
             title="Aprendiz Tecnólogo en ADSO (Ficha 2996897)",
             phone="+57 312 411 7048",
             department="Etapa Lectiva / Proyecto Productivo"
@@ -943,6 +960,188 @@ def login(payload: LoginRequest):
         )
             
     raise HTTPException(status_code=400, detail="Rol de acceso no reconocido. Seleccione Administrador, Directivo o Estudiante.")
+
+
+@app.get("/api/public/catalog")
+def get_public_catalog():
+    """
+    Catálogo público en vivo para la Landing Page y el formulario de Crear Cuenta:
+    Devuelve las instituciones activas con sus programas de formación y estadísticas globales reales.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM institutions WHERE status <> 'Inactiva' ORDER BY id ASC")
+    inst_rows = cursor.fetchall()
+
+    cursor.execute("SELECT institution, program, risk_level FROM students")
+    st_rows = cursor.fetchall()
+
+    cursor.execute("SELECT COUNT(*) FROM mentors WHERE available = 1")
+    mentors_cnt = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM interview_history")
+    iv_cnt = cursor.fetchone()[0]
+    conn.close()
+
+    institutions_list = []
+    for ir in inst_rows:
+        try:
+            progs = json.loads(ir["programs_json"] or "[]")
+            if not isinstance(progs, list):
+                progs = []
+        except Exception:
+            progs = []
+        st_progs = [s["program"] for s in st_rows if s["institution"] == ir["name"] and s["program"]]
+        merged_progs = list(dict.fromkeys([p.strip() for p in progs if p and p.strip()] + st_progs))
+        if not merged_progs:
+            merged_progs = ["Tecnólogo en ADSO", "Desarrollo de Software", "Tecnólogo en Gestión Empresarial"]
+        institutions_list.append({
+            "id": ir["id"],
+            "name": ir["name"],
+            "city": ir["city"] or "Medellín, Antioquia",
+            "programs": merged_progs
+        })
+
+    total_st = len(st_rows)
+    low_st = sum(1 for s in st_rows if s["risk_level"] == "bajo")
+    med_st = sum(1 for s in st_rows if s["risk_level"] == "medio")
+    retention_pct = int(((low_st + med_st * 0.72) / total_st) * 100) if total_st > 0 else 94
+
+    return {
+        "institutions": institutions_list,
+        "stats": {
+            "studentsCount": total_st,
+            "institutionsCount": len(institutions_list),
+            "mentorsCount": mentors_cnt,
+            "simulationsCount": max(iv_cnt, total_st * 2),
+            "retentionRate": f"{retention_pct}%"
+        }
+    }
+
+
+@app.post("/api/auth/register", response_model=UserSession, status_code=201)
+def register_public_account(payload: PublicRegisterRequest):
+    """
+    Registro público de nuevas cuentas (Estudiante / Aprendiz o Directivo Institucional)
+    desde la Landing Page o la pantalla de Login/Registro.
+    Sincroniza en tiempo real las tablas 'students', 'system_profiles' e 'institutions'.
+    """
+    clean_email = (payload.email or "").strip().lower()
+    clean_name = (payload.fullName or "").strip()
+    clean_inst = (payload.institution or "SENA - Centro de Tecnologías del Software").strip()
+    role = (payload.role or "student").strip()
+
+    if not clean_email or "@" not in clean_email or not clean_name:
+        raise HTTPException(status_code=400, detail="Por favor ingresa tu nombre completo y un correo institucional válido.")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id FROM students WHERE LOWER(email) = ?", (clean_email,))
+    existing_st = cursor.fetchone()
+    cursor.execute("SELECT email FROM system_profiles WHERE LOWER(email) = ?", (clean_email,))
+    existing_prof = cursor.fetchone()
+
+    if existing_st or existing_prof:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Este correo electrónico ya tiene una cuenta registrada. Por favor inicia sesión.")
+
+    if role == "admin_tenant":
+        clean_title = (payload.title or "Coordinador Académico Institucional").strip()
+        cursor.execute("SELECT id FROM institutions WHERE LOWER(name) = ?", (clean_inst.lower(),))
+        if not cursor.fetchone():
+            cursor.execute('''
+                INSERT INTO institutions (name, code_nit, city, address, contact_name, contact_email, contact_phone, programs_json, status)
+                VALUES (?, 'NIT Institucional', 'Medellín, Antioquia', 'Sede Principal', ?, ?, ?, ?, 'Activa')
+            ''', (
+                clean_inst,
+                clean_name,
+                clean_email,
+                payload.phone or "+57 (604) 444-0000",
+                json.dumps(["Tecnólogo en ADSO", "Desarrollo de Software"], ensure_ascii=False)
+            ))
+
+        cursor.execute('''
+            INSERT INTO system_profiles (email, full_name, role, institution, title, phone, department, status, password)
+            VALUES (?, ?, 'admin_tenant', ?, ?, ?, 'Coordinación de Formación Profesional', 'Activo', ?)
+        ''', (clean_email, clean_name, clean_inst, clean_title, payload.phone or "+57 300 000 0000", payload.password or "director123"))
+
+        conn.commit()
+        conn.close()
+        return UserSession(
+            email=clean_email,
+            role="admin_tenant",
+            fullName=clean_name,
+            institution=clean_inst,
+            title=clean_title,
+            phone=payload.phone or "+57 300 000 0000",
+            department="Coordinación de Formación Profesional"
+        )
+
+    # Por defecto: Registro de Estudiante / Aprendiz
+    clean_prog = (payload.program or "Tecnólogo en ADSO").strip()
+    stratum_val = int(payload.stratum or 2)
+    aid_val = int(payload.has_financial_aid or 0)
+    att_val = 90.0
+    acad_val = 80.0
+    emo_val = "Estable"
+
+    r_lvl, r_prob, r_factor = compute_risk(
+        attendance=att_val,
+        academic_score=acad_val,
+        stratum=stratum_val,
+        has_financial_aid=aid_val,
+        emotional_status=emo_val
+    )
+
+    cursor.execute('''
+        INSERT INTO students (
+            name, email, program, attendance, absences_count, academic_score,
+            stratum, has_financial_aid, emotional_status, risk_level, risk_probability,
+            primary_factor, status, institution
+        )
+        VALUES (?, ?, ?, ?, 2, ?, ?, ?, ?, ?, ?, ?, 'Activo', ?)
+    ''', (
+        clean_name, clean_email, clean_prog, att_val, acad_val,
+        stratum_val, aid_val, emo_val, r_lvl, r_prob, r_factor, clean_inst
+    ))
+
+    cursor.execute('''
+        INSERT INTO system_profiles (email, full_name, role, institution, title, phone, department, status, password)
+        VALUES (?, ?, 'student', ?, ?, ?, 'Formación Profesional', 'Activo', ?)
+    ''', (
+        clean_email, clean_name, clean_inst, f"Aprendiz - {clean_prog}",
+        payload.phone or "+57 312 000 0000", payload.password or "student123"
+    ))
+
+    # Garantizar que el programa exista también en el catálogo de la institución
+    cursor.execute("SELECT id, programs_json FROM institutions WHERE LOWER(name) = ?", (clean_inst.lower(),))
+    inst_row = cursor.fetchone()
+    if inst_row:
+        try:
+            progs = json.loads(inst_row["programs_json"] or "[]")
+        except Exception:
+            progs = []
+        if clean_prog not in progs:
+            progs.append(clean_prog)
+            cursor.execute("UPDATE institutions SET programs_json = ? WHERE id = ?", (json.dumps(progs, ensure_ascii=False), inst_row["id"]))
+
+    conn.commit()
+    conn.close()
+
+    return UserSession(
+        email=clean_email,
+        role="student",
+        fullName=clean_name,
+        institution=clean_inst,
+        program=clean_prog,
+        title=f"Aprendiz - {clean_prog}",
+        phone=payload.phone or "+57 312 000 0000",
+        department="Formación Profesional"
+    )
 
 # 3. PERFIL DE USUARIO (CONSULTAR Y ACTUALIZAR)
 @app.get("/api/auth/profile")

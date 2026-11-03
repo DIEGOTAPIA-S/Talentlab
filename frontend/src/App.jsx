@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
+import Registro from './pages/Registro'
 import Dashboard from './pages/Dashboard'
 import Simulador from './pages/Simulador'
 
@@ -23,8 +25,9 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/registro" element={<Registro />} />
         
         {/* Protected Admin & Directivo Routes */}
         <Route element={<SidebarLayout />}>
