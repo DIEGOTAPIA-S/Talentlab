@@ -1,7 +1,8 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 
-const API = 'http://localhost:8000';
+const API = API_BASE_URL;
 
 export default function Planes() {
   const location = useLocation();

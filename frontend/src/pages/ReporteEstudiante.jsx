@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -32,8 +33,8 @@ export default function ReporteEstudiante() {
       if (studentEmail) params.set('student_email', studentEmail);
       if (studentName) params.set('assigned_to', studentName);
       const [plansRes, summaryRes] = await Promise.all([
-        fetch(`http://localhost:8000/api/plans/support?${params.toString()}`),
-        fetch(`http://localhost:8000/api/student/summary?email=${encodeURIComponent(studentEmail)}`)
+        fetch(`${API_BASE_URL}/api/plans/support?${params.toString()}`),
+        fetch(`${API_BASE_URL}/api/student/summary?email=${encodeURIComponent(studentEmail)}`)
       ]);
 
       if (plansRes.ok) {
@@ -111,7 +112,7 @@ export default function ReporteEstudiante() {
     const newStatus = newProgress >= 100 ? 'Completado' : newProgress > 0 ? 'En Progreso' : 'Asignado';
 
     try {
-      const res = await fetch(`http://localhost:8000/api/plans/support/${selectedPlan.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/plans/support/${selectedPlan.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 
 export default function Mentorias() {
@@ -45,7 +46,7 @@ export default function Mentorias() {
   // Cargar sesiones agendadas
   const fetchSessions = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/api/mentorships/my-sessions?student_email=${encodeURIComponent(studentEmail)}`);
+      const res = await fetch(`${API_BASE_URL}/api/mentorships/my-sessions?student_email=${encodeURIComponent(studentEmail)}`);
       if (res.ok) {
         const data = await res.json();
         setSessions(data.sessions || []);
@@ -68,7 +69,7 @@ export default function Mentorias() {
         ? aiImprovements
         : [studentProgram, goal, 'Entrevistas Técnicas'];
 
-      const res = await fetch('http://localhost:8000/api/mentorships/match', {
+      const res = await fetch(`${API_BASE_URL}/api/mentorships/match`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -94,7 +95,7 @@ export default function Mentorias() {
     if (!selectedMentor) return;
 
     try {
-      const res = await fetch('http://localhost:8000/api/mentorships/book', {
+      const res = await fetch(`${API_BASE_URL}/api/mentorships/book`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

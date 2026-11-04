@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import TalentLabLogo from './TalentLabLogo';
@@ -12,7 +13,7 @@ export default function SidebarLayout() {
   useEffect(() => {
     const current = JSON.parse(localStorage.getItem('user_session') || '{}');
     if (!current.email) return;
-    fetch(`http://localhost:8000/api/auth/profile?email=${encodeURIComponent(current.email)}`)
+    fetch(`${API_BASE_URL}/api/auth/profile?email=${encodeURIComponent(current.email)}`)
       .then(res => (res.ok ? res.json() : null))
       .then(dbProf => {
         if (dbProf && dbProf.email) {

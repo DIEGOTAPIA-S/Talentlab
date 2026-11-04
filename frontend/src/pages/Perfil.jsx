@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 
 export default function Perfil() {
@@ -89,7 +90,7 @@ export default function Perfil() {
     });
 
     // Sincronizar con la ficha oficial almacenada en SQLite (Gobierno de Datos)
-    fetch(`http://localhost:8000/api/auth/profile?email=${encodeURIComponent(resolvedEmail)}`)
+    fetch(`${API_BASE_URL}/api/auth/profile?email=${encodeURIComponent(resolvedEmail)}`)
       .then(res => (res.ok ? res.json() : null))
       .then(dbProfile => {
         if (dbProfile && dbProfile.email) {
@@ -109,7 +110,7 @@ export default function Perfil() {
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8000/api/auth/profile', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

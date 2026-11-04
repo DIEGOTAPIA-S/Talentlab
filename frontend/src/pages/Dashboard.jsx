@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { generateInstitutionalPdfReport } from '../utils/pdfReportGenerator';
@@ -34,7 +35,7 @@ export default function Dashboard() {
         const instParam = sessionData.role === 'admin_tenant' && sessionData.institution
           ? `?institution=${encodeURIComponent(sessionData.institution)}`
           : '';
-        const response = await fetch(`http://localhost:8000/api/dashboard/risk-semaphore${instParam}`);
+        const response = await fetch(`${API_BASE_URL}/api/dashboard/risk-semaphore${instParam}`);
         if (response.ok) {
           const data = await response.json();
           if (data.students) setStudents(data.students);

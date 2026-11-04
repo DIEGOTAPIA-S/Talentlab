@@ -1,8 +1,9 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import TalentLabLogo from '../components/TalentLabLogo';
 
-const API = 'http://localhost:8000';
+const API = API_BASE_URL;
 
 export default function Login() {
   const navigate = useNavigate();

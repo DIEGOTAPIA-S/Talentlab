@@ -1,10 +1,11 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import InterviewerAvatar from '../components/InterviewerAvatar';
 import { BodyAndVoiceAnalyzer } from '../lib/bodyAnalysis';
 import { INTERVIEW_MODES, TECHNICAL_PROGRAMS, INTERVIEWER_PERSONAS, VOCATIONAL_TRACKS, FIXED_INTERVIEWER_VOICES } from '../lib/interviewerConstants';
 
-const API = 'http://localhost:8000';
+const API = API_BASE_URL;
 const BARS = 56;
 const MAX_ANSWER_SECONDS = 90; // Estándar de la industria HR Tech (HireVue/Modern Hire: 90s máx por respuesta)
 const TOTAL_INTERVIEW_SECONDS = 600; // 10 minutos de tiempo efectivo de habla del estudiante (no corre mientras habla el evaluador)

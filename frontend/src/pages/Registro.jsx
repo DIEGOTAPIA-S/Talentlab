@@ -1,8 +1,9 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import TalentLabLogo from '../components/TalentLabLogo';
 
-const API = 'http://localhost:8000';
+const API = API_BASE_URL;
 
 const DEFAULT_INSTITUTIONS = [
   {

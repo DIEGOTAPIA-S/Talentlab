@@ -1,8 +1,9 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { generateInstitutionalPdfReport } from '../utils/pdfReportGenerator';
 
-const API = 'http://localhost:8000';
+const API = API_BASE_URL;
 
 const riskColors = {
   alto: { bg: 'rgba(239,68,68,0.15)', fg: '#f87171', label: 'RIESGO ALTO' },

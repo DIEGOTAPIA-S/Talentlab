@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 
 export default function Egresados() {
@@ -36,8 +37,8 @@ export default function Egresados() {
     try {
       setLoading(true);
       const [res, progRes] = await Promise.all([
-        fetch('http://localhost:8000/api/graduates'),
-        fetch('http://localhost:8000/api/institutions/programs')
+        fetch(`${API_BASE_URL}/api/graduates`),
+        fetch(`${API_BASE_URL}/api/institutions/programs`)
       ]);
       if (res.ok) {
         const data = await res.json();
@@ -59,7 +60,7 @@ export default function Egresados() {
   const handleToggleMentor = async (grad) => {
     try {
       const nextMentor = grad.isMentor ? 0 : 1;
-      const res = await fetch(`http://localhost:8000/api/graduates/${grad.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/graduates/${grad.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_mentor: nextMentor })
@@ -80,7 +81,7 @@ export default function Egresados() {
   const handleDeleteGraduate = async (grad) => {
     if (!window.confirm(`¿Deseas desvincular a ${grad.name} de la Red de Egresados y Mentores?`)) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/graduates/${grad.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/graduates/${grad.id}`, {
         method: 'DELETE'
       });
       if (res.ok) {
@@ -99,7 +100,7 @@ export default function Egresados() {
   const handleCreateGraduate = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8000/api/graduates', {
+      const res = await fetch(`${API_BASE_URL}/api/graduates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

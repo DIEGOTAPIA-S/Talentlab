@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { generateInstitutionalPdfReport } from '../utils/pdfReportGenerator';
@@ -126,8 +127,8 @@ export default function Alumnos() {
         ? `?institution=${encodeURIComponent(myInstitution)}`
         : '';
       const [res, progRes] = await Promise.all([
-        fetch(`http://localhost:8000/api/students${instQuery}`),
-        fetch(`http://localhost:8000/api/institutions/programs${instQuery}`)
+        fetch(`${API_BASE_URL}/api/students${instQuery}`),
+        fetch(`${API_BASE_URL}/api/institutions/programs${instQuery}`)
       ]);
       if (res.ok) {
         const data = await res.json();
@@ -209,7 +210,7 @@ export default function Alumnos() {
     }
 
     try {
-      const res = await fetch('http://localhost:8000/api/students/import-batch', {
+      const res = await fetch(`${API_BASE_URL}/api/students/import-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -239,7 +240,7 @@ export default function Alumnos() {
         ...formData,
         institution: !isSuperAdmin ? myInstitution : (formData.institution || myInstitution)
       };
-      const res = await fetch('http://localhost:8000/api/students', {
+      const res = await fetch(`${API_BASE_URL}/api/students`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -292,7 +293,7 @@ export default function Alumnos() {
     e.preventDefault();
     if (!selectedAlumno) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/students/${selectedAlumno.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/students/${selectedAlumno.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -316,7 +317,7 @@ export default function Alumnos() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:8000/api/students/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/students/${id}`, {
         method: 'DELETE'
       });
       if (res.ok) {
