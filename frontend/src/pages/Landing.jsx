@@ -71,17 +71,6 @@ export default function Landing() {
           </nav>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {session ? (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleContinueSession}
-                style={{ padding: '9px 18px', fontSize: '0.86rem' }}
-              >
-                <i className="fa-solid fa-gauge-high" style={{ marginRight: '6px' }}></i>
-                Ir a mi Panel ({session.fullName?.split(' ')[0] || 'Activo'})
-              </button>
-            ) : null}
             <button
               type="button"
               className="btn btn-secondary"
