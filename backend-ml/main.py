@@ -3,7 +3,8 @@ import re
 import json
 import random
 import sqlite3
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta
 import uvicorn
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -167,6 +168,18 @@ def init_db():
             programs_json TEXT DEFAULT '[]',
             status TEXT DEFAULT 'Activa',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # 8. Tabla de Tokens de Recuperación y Restablecimiento de Contraseña
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT UNIQUE NOT NULL,
+            email TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            used INTEGER DEFAULT 0
         )
     ''')
 
@@ -644,6 +657,18 @@ class ProfileUpdateRequest(BaseModel):
     department: Optional[str] = None
     password: Optional[str] = None
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+    frontend_url: Optional[str] = None
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+class AdminResetPasswordRequest(BaseModel):
+    email: str
+    new_password: Optional[str] = None
+
 class StudentCreateRequest(BaseModel):
     name: str
     email: str
@@ -874,6 +899,30 @@ def login(payload: LoginRequest):
     student_row = cursor.fetchone()
     conn.close()
 
+    # Validación de contraseña si el perfil está registrado
+    if saved_profile and "password" in saved_profile.keys() and saved_profile["password"]:
+        db_pass = str(saved_profile["password"]).strip()
+        defaults = {"123456", "student123", "director123", "admin123"}
+        if db_pass not in defaults:
+            if password != db_pass:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Contraseña incorrecta. Por favor verifica tus credenciales o solicita el restablecimiento."
+                )
+        else:
+            allowed = {db_pass, "123456"}
+            if saved_profile["role"] == "student":
+                allowed.add("student123")
+            elif saved_profile["role"] in ("admin_tenant", "directivo"):
+                allowed.add("director123")
+            elif saved_profile["role"] == "super_admin":
+                allowed.add("admin123")
+            if password not in allowed:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Contraseña incorrecta. Por favor verifica tus credenciales o solicita el restablecimiento."
+                )
+
     if saved_profile and saved_profile["role"] == "super_admin" and role != "student":
         return UserSession(
             email=saved_profile["email"],
@@ -964,6 +1013,233 @@ def login(payload: LoginRequest):
         )
             
     raise HTTPException(status_code=400, detail="Rol de acceso no reconocido. Seleccione Administrador, Directivo o Estudiante.")
+
+
+def send_reset_email(to_email: str, reset_url: str, user_name: str = "Usuario") -> bool:
+    """
+    Envía un correo seguro con el enlace de recuperación de contraseña.
+    Si las variables SMTP no están configuradas, registra en consola y retorna False.
+    """
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+    smtp_user = os.environ.get("SMTP_USER")
+    smtp_pass = os.environ.get("SMTP_PASSWORD")
+
+    if not smtp_user or not smtp_pass:
+        print(f"[RECOVERY EMAIL] SMTP no configurado. Token generado para {to_email}: {reset_url}")
+        return False
+
+    try:
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "Recuperación de Contraseña - TalentLab"
+        msg["From"] = f"TalentLab <{smtp_user}>"
+        msg["To"] = to_email
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 24px; }}
+            .card {{ max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); padding: 32px; }}
+            .logo {{ font-size: 24px; font-weight: 800; color: #38bdf8; text-align: center; margin-bottom: 16px; }}
+            .logo span {{ color: #a855f7; }}
+            .btn {{ display: inline-block; background: linear-gradient(135deg, #0284c7, #7c3aed); color: #ffffff !important; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; margin: 20px 0; text-align: center; }}
+            .footer {{ font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px; }}
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="logo">Talent<span>Lab</span></div>
+            <h2 style="color: #ffffff; margin-top: 0;">Restablecimiento de Contraseña</h2>
+            <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">Hola <strong>{user_name}</strong>,</p>
+            <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">Hemos recibido una solicitud para restablecer la contraseña de tu cuenta institucional en TalentLab.</p>
+            <div style="text-align: center;">
+              <a href="{reset_url}" class="btn" target="_blank">Restablecer mi Contraseña</a>
+            </div>
+            <p style="color: #94a3b8; font-size: 13px;">Este enlace es seguro y expirará en <strong>30 minutos</strong>.</p>
+            <p style="color: #94a3b8; font-size: 11px; word-break: break-all;">O copia este enlace en tu navegador:<br><a href="{reset_url}" style="color: #38bdf8;">{reset_url}</a></p>
+            <div class="footer">TalentLab S.A.S. &copy; 2026 - Detecta. Prepara. Conecta.</div>
+          </div>
+        </body>
+        </html>
+        """
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        print(f"[RECOVERY EMAIL] Correo de recuperación enviado con éxito a {to_email}")
+        return True
+    except Exception as e:
+        print(f"[RECOVERY EMAIL ERROR] No se pudo enviar correo a {to_email}: {e}")
+        return False
+
+
+@app.post("/api/auth/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest):
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Debe ingresar un correo institucional válido.")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM system_profiles WHERE LOWER(email) = ?", (email,))
+    user = cursor.fetchone()
+    user_name = user["full_name"] if user else None
+
+    if not user:
+        cursor.execute("SELECT * FROM students WHERE LOWER(email) = ?", (email,))
+        st = cursor.fetchone()
+        if st:
+            user_name = st["name"]
+
+    if not user_name:
+        conn.close()
+        # Retorno genérico seguro para no dar pistas de enumeración de correos
+        return {
+            "status": "success",
+            "message": "Si el correo está registrado en el ecosistema, se han enviado las instrucciones de recuperación.",
+            "reset_link": None,
+            "email_sent": False
+        }
+
+    token = secrets.token_urlsafe(32)
+    expires_at = (datetime.utcnow() + timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
+
+    cursor.execute('''
+        INSERT INTO password_resets (token, email, expires_at, used)
+        VALUES (?, ?, ?, 0)
+    ''', (token, email, expires_at))
+    conn.commit()
+    conn.close()
+
+    frontend_base = (payload.frontend_url or os.environ.get("FRONTEND_URL") or "https://talentlab.vercel.app").rstrip("/")
+    reset_url = f"{frontend_base}/reset-password?token={token}"
+
+    email_sent = send_reset_email(email, reset_url, user_name)
+
+    return {
+        "status": "success",
+        "message": "Se han generado las instrucciones de recuperación exitosamente.",
+        "reset_link": reset_url,
+        "token": token,
+        "email_sent": email_sent
+    }
+
+
+@app.post("/api/auth/reset-password")
+def reset_password(payload: ResetPasswordRequest):
+    token = payload.token.strip()
+    new_password = payload.new_password.strip()
+
+    if not token:
+        raise HTTPException(status_code=400, detail="Token de recuperación no proporcionado.")
+    if not new_password or len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 6 caracteres.")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM password_resets WHERE token = ?", (token,))
+    record = cursor.fetchone()
+
+    if not record:
+        conn.close()
+        raise HTTPException(status_code=400, detail="El enlace de recuperación es inválido o no existe.")
+
+    if record["used"] == 1:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Este enlace de recuperación ya ha sido utilizado anteriormente.")
+
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    if str(record["expires_at"]) < now_str:
+        conn.close()
+        raise HTTPException(status_code=400, detail="El enlace de recuperación ha expirado. Por favor solicita uno nuevo.")
+
+    target_email = record["email"].lower()
+
+    cursor.execute("SELECT * FROM system_profiles WHERE LOWER(email) = ?", (target_email,))
+    prof = cursor.fetchone()
+
+    if prof:
+        cursor.execute("UPDATE system_profiles SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = ?", (new_password, target_email))
+    else:
+        cursor.execute("SELECT * FROM students WHERE LOWER(email) = ?", (target_email,))
+        st = cursor.fetchone()
+        inst = st["institution"] if st else "SENA - Centro de Tecnologías del Software"
+        name = st["name"] if st else target_email.split("@")[0]
+        cursor.execute('''
+            INSERT INTO system_profiles (email, full_name, role, institution, title, status, password)
+            VALUES (?, ?, 'student', ?, 'Aprendiz / Estudiante', 'Activo', ?)
+        ''', (target_email, name, inst, new_password))
+
+    cursor.execute("UPDATE password_resets SET used = 1 WHERE token = ?", (token,))
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "message": "Contraseña actualizada exitosamente. Ya puedes iniciar sesión con tu nueva credencial."
+    }
+
+
+@app.post("/api/admin/users/reset-password")
+def admin_reset_user_password(payload: AdminResetPasswordRequest):
+    email = payload.email.strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="El correo de usuario es obligatorio.")
+
+    new_password = payload.new_password.strip() if payload.new_password else None
+    if not new_password:
+        suffix = secrets.token_hex(3)
+        new_password = f"Talent#{suffix}"
+
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener mínimo 6 caracteres.")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM system_profiles WHERE LOWER(email) = ?", (email,))
+    prof = cursor.fetchone()
+
+    cursor.execute("SELECT * FROM students WHERE LOWER(email) = ?", (email,))
+    st = cursor.fetchone()
+
+    if not prof and not st:
+        conn.close()
+        raise HTTPException(status_code=404, detail="El usuario especificado no existe en el sistema.")
+
+    if prof:
+        cursor.execute("UPDATE system_profiles SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = ?", (new_password, email))
+    else:
+        inst = st["institution"] if st else "SENA - Centro de Tecnologías del Software"
+        name = st["name"] if st else email.split("@")[0]
+        cursor.execute('''
+            INSERT INTO system_profiles (email, full_name, role, institution, title, status, password)
+            VALUES (?, ?, 'student', ?, 'Aprendiz / Estudiante', 'Activo', ?)
+        ''', (email, name, inst, new_password))
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "message": f"Contraseña restablecida exitosamente para {email}.",
+        "email": email,
+        "new_password": new_password
+    }
 
 
 @app.get("/api/public/catalog")

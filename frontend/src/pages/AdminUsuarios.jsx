@@ -153,6 +153,14 @@ export default function AdminUsuarios() {
   const [editingUser, setEditingUser] = useState(null);
   const [customInstitution, setCustomInstitution] = useState('');
 
+  // Modal de Restablecer Contraseña (Exclusivo Administrador)
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState(null);
+  const [resetPassInput, setResetPassInput] = useState('');
+  const [resetSuccessData, setResetSuccessData] = useState(null);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [copiedResetPass, setCopiedResetPass] = useState(false);
+
   // Modal y Estado de Gestión de Instituciones + Programas
   const [showInstModal, setShowInstModal] = useState(false);
   const [editingInst, setEditingInst] = useState(null); // null = crear, objeto = editar
@@ -585,6 +593,57 @@ export default function AdminUsuarios() {
     } catch (err) {
       alert('Error al conectar con el servidor.');
     }
+  };
+
+  const handleOpenResetModal = (user) => {
+    setResetTargetUser(user);
+    setResetPassInput('');
+    setResetSuccessData(null);
+    setCopiedResetPass(false);
+    setShowResetModal(true);
+  };
+
+  const handleGenerateRandomPass = () => {
+    const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
+    let rand = '';
+    for (let i = 0; i < 4; i++) {
+      rand += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setResetPassInput(`Talent#${rand}`);
+  };
+
+  const handleAdminResetSubmit = async (e) => {
+    e.preventDefault();
+    if (!resetTargetUser) return;
+
+    setResetSubmitting(true);
+    try {
+      const res = await fetch(`${API}/api/admin/users/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: resetTargetUser.email,
+          new_password: resetPassInput.trim() || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Error al restablecer la contraseña.');
+      }
+      setResetSuccessData(data);
+      notify(`Contraseña restablecida exitosamente para ${resetTargetUser.email}`);
+    } catch (err) {
+      alert(err.message || 'Error de conexión con el backend.');
+    } finally {
+      setResetSubmitting(false);
+    }
+  };
+
+  const handleCopyAdminResetPass = () => {
+    if (!resetSuccessData || !resetSuccessData.new_password) return;
+    navigator.clipboard.writeText(resetSuccessData.new_password);
+    setCopiedResetPass(true);
+    setTimeout(() => setCopiedResetPass(false), 2500);
   };
 
   if (!session) return null;
@@ -1150,6 +1209,14 @@ export default function AdminUsuarios() {
                           >
                             <i className="fa-solid fa-pen"></i> Editar
                           </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '5px 10px', fontSize: '0.76rem', color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.35)' }}
+                            onClick={() => handleOpenResetModal(u)}
+                            title="Restablecer Contraseña"
+                          >
+                            <i className="fa-solid fa-key"></i> Clave
+                          </button>
                           {u.email !== 'admin@talentlab.edu' && (
                             <button
                               className="btn btn-secondary"
@@ -1265,6 +1332,14 @@ export default function AdminUsuarios() {
                           title="Editar o transferir de institución"
                         >
                           <i className="fa-solid fa-pen"></i>
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '5px 10px', fontSize: '0.75rem', color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.35)' }}
+                          onClick={() => handleOpenResetModal(st)}
+                          title="Restablecer Contraseña"
+                        >
+                          <i className="fa-solid fa-key"></i>
                         </button>
                         <button
                           className="btn btn-secondary"
@@ -1873,6 +1948,168 @@ export default function AdminUsuarios() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL RESTABLECER CONTRASEÑA */}
+      {showResetModal && resetTargetUser && (
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: '460px', width: '100%' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    color: '#38bdf8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1rem'
+                  }}
+                >
+                  <i className="fa-solid fa-key"></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#f8fafc' }}>Restablecer Contraseña</h3>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8' }}>
+                    Gestión de Credenciales de Acceso
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => { setShowResetModal(false); setResetTargetUser(null); }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div style={{ padding: '12px 16px', background: 'rgba(255, 255, 255, 0.04)', borderRadius: '8px', marginBottom: '18px' }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f8fafc' }}>{resetTargetUser.name}</div>
+              <div style={{ fontSize: '0.8rem', color: '#38bdf8' }}>{resetTargetUser.email}</div>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>
+                Rol: {resetTargetUser.roleLabel || resetTargetUser.role} • {resetTargetUser.institution}
+              </div>
+            </div>
+
+            {resetSuccessData ? (
+              <div style={{ textAlign: 'center', padding: '12px 0' }}>
+                <div
+                  style={{
+                    width: '52px',
+                    height: '52px',
+                    borderRadius: '50%',
+                    background: 'rgba(34, 197, 94, 0.15)',
+                    color: '#4ade80',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.5rem',
+                    marginBottom: '14px'
+                  }}
+                >
+                  <i className="fa-solid fa-check"></i>
+                </div>
+                <h4 style={{ color: '#f8fafc', fontSize: '1.05rem', margin: '0 0 8px 0' }}>
+                  ¡Contraseña Restablecida!
+                </h4>
+                <p style={{ color: '#94a3b8', fontSize: '0.84rem', margin: '0 0 16px 0' }}>
+                  Comparte esta nueva credencial con el usuario para que pueda iniciar sesión:
+                </p>
+
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.8)',
+                    border: '1px dashed #38bdf8',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    fontSize: '1.2rem',
+                    fontWeight: 700,
+                    letterSpacing: '1px',
+                    color: '#38bdf8',
+                    marginBottom: '16px',
+                    fontFamily: 'monospace'
+                  }}
+                >
+                  {resetSuccessData.new_password}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ flex: 1 }}
+                    onClick={handleCopyAdminResetPass}
+                  >
+                    <i className={`fa-solid ${copiedResetPass ? 'fa-check' : 'fa-copy'}`}></i>{' '}
+                    {copiedResetPass ? '¡Copiada al Portapapeles!' : 'Copiar Contraseña'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => { setShowResetModal(false); setResetTargetUser(null); }}
+                  >
+                    Finalizar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleAdminResetSubmit}>
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ margin: 0, fontSize: '0.85rem' }}>Nueva Contraseña</label>
+                    <button
+                      type="button"
+                      onClick={handleGenerateRandomPass}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#38bdf8',
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontWeight: 600
+                      }}
+                    >
+                      🎲 Generar Aleatoria
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Escribe una contraseña o genera una aleatoria"
+                    value={resetPassInput}
+                    onChange={(e) => setResetPassInput(e.target.value)}
+                  />
+                  <small style={{ color: '#94a3b8', fontSize: '0.74rem', marginTop: '4px', display: 'block' }}>
+                    Si se deja vacío, el sistema generará una contraseña segura automáticamente.
+                  </small>
+                </div>
+
+                <div className="modal-actions" style={{ marginTop: '20px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => { setShowResetModal(false); setResetTargetUser(null); }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={resetSubmitting}
+                  >
+                    {resetSubmitting ? 'Guardando...' : 'Restablecer Ahora'}{' '}
+                    <i className="fa-solid fa-key"></i>
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
