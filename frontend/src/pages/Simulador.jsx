@@ -102,8 +102,13 @@ export default function Simulador() {
   const speechTextRef = useRef('');
   const silenceTimerRef = useRef(null);
   const isRecordingRef = useRef(false);
+  const inputValueRef = useRef('');
+  inputValueRef.current = inputValue;
   const handleSendRef = useRef(null);
   const handleConcludeRef = useRef(null);
+
+  const isTyping = hasStarted && inputValue.trim().length > 0 && !isRecording && !speaking && !isThinking && interviewStage !== 'concluded' && !showConclusionModal;
+  const isResponding = isRecording || isTyping;
 
   const selectedPersona = INTERVIEWER_PERSONAS.find(p => p.id === selectedPersonaId) || INTERVIEWER_PERSONAS[0];
 
@@ -397,19 +402,19 @@ export default function Simulador() {
   };
 
   useEffect(() => {
-    if (!isRecording) return;
+    if (!isResponding) return;
     const t = setInterval(() => {
       setSeconds(s => {
         const next = s + 1;
         if (next >= MAX_ANSWER_SECONDS) {
           stopAudio();
           setIsRecording(false);
-          const recorded = (speechTextRef.current || inputValue || '').trim();
+          const recorded = (speechTextRef.current || inputValueRef.current || '').trim();
           if (recorded.length > 0 && handleSendRef.current) {
             setTimeWarning('⏱ ¡Tiempo límite de 90s alcanzado! Enviando respuesta automáticamente...');
             handleSendRef.current(recorded);
           } else {
-            setTimeWarning('⏱ ¡Tiempo límite de 90s alcanzado! No se detectó audio en tu respuesta.');
+            setTimeWarning('⏱ ¡Tiempo límite de 90s alcanzado! No se detectó respuesta.');
           }
           return MAX_ANSWER_SECONDS;
         }
@@ -417,11 +422,11 @@ export default function Simulador() {
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [isRecording, stopAudio]);
+  }, [isResponding, stopAudio]);
 
-  // Temporizador Global de la Entrevista (10 minutos máx — SOLO cuenta cuando el estudiante está hablando)
+  // Temporizador Global de la Entrevista (10 minutos máx — cuenta cuando el estudiante habla o escribe su respuesta)
   useEffect(() => {
-    if (!hasStarted || !isRecording || speaking || isThinking || interviewStage === 'concluded' || showConclusionModal) return;
+    if (!hasStarted || !isResponding || speaking || isThinking || interviewStage === 'concluded' || showConclusionModal) return;
     const t = setInterval(() => {
       setTotalSecondsLeft(s => {
         if (s <= 1) {
@@ -435,7 +440,7 @@ export default function Simulador() {
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [hasStarted, isRecording, speaking, isThinking, interviewStage, showConclusionModal]);
+  }, [hasStarted, isResponding, speaking, isThinking, interviewStage, showConclusionModal]);
 
   useEffect(() => () => { 
     stopStream(); 
@@ -718,6 +723,7 @@ export default function Simulador() {
     if (isRecording) { stopAudio(); setIsRecording(false); }
     speechTextRef.current = '';
     setInputValue('');
+    setSeconds(0);
     setTimeWarning(null);
     setIsThinking(true);
 
@@ -1208,18 +1214,18 @@ export default function Simulador() {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
                 <span style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <i className="fa-regular fa-hourglass-half" style={{ color: '#38bdf8' }}></i> Tiempo de Entrevista (Solo cuando hablas):
+                  <i className="fa-regular fa-hourglass-half" style={{ color: '#38bdf8' }}></i> Tiempo de Entrevista (Voz o Texto):
                 </span>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{
                     fontSize: '0.68rem',
                     padding: '2px 7px',
                     borderRadius: '999px',
-                    background: isRecording && !speaking ? 'rgba(16, 185, 129, 0.18)' : 'rgba(148, 163, 184, 0.14)',
-                    color: isRecording && !speaking ? '#34d399' : '#94a3b8',
+                    background: isResponding && !speaking ? 'rgba(16, 185, 129, 0.18)' : 'rgba(148, 163, 184, 0.14)',
+                    color: isResponding && !speaking ? '#34d399' : '#94a3b8',
                     fontWeight: 600
                   }}>
-                    {speaking ? '⏸ Evaluador hablando' : isRecording ? '● Contando' : '⏸ En pausa'}
+                    {speaking ? '⏸ Evaluador hablando' : isRecording ? '● Contando (Voz)' : isTyping ? '● Contando (Texto)' : '⏸ En pausa'}
                   </span>
                   <span style={{
                     fontSize: '0.84rem',
@@ -1249,7 +1255,7 @@ export default function Simulador() {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <span style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <i className="fa-solid fa-microphone" style={{ color: isRecording ? '#10b981' : 'var(--text-muted)' }}></i> Límite de Respuesta:
+                  <i className={`fa-solid ${isTyping ? 'fa-keyboard' : 'fa-microphone'}`} style={{ color: isResponding ? '#10b981' : 'var(--text-muted)' }}></i> Límite de Respuesta:
                 </span>
                 <span style={{
                   fontSize: '0.84rem',
@@ -1469,7 +1475,7 @@ export default function Simulador() {
                 gap: '6px'
               }}>
                 <i className="fa-regular fa-clock"></i>
-                {isRecording ? `Tiempo: ${mm}:${ss} / 01:30` : seconds > 0 ? `Duración: ${mm}:${ss} / 01:30` : 'Límite: 90s por respuesta'}
+                {isResponding ? `Tiempo: ${mm}:${ss} / 01:30` : seconds > 0 ? `Duración: ${mm}:${ss} / 01:30` : 'Límite: 90s por respuesta'}
               </span>
               {liveBio.cadenceWpm > 0 && (
                 <span style={{ fontSize: '0.78rem', color: 'var(--secondary)' }}>
@@ -1490,9 +1496,20 @@ export default function Simulador() {
                 }}>
                   ● REC ({MAX_ANSWER_SECONDS - seconds}s restantes)
                 </span>
+              ) : isTyping ? (
+                <span style={{ 
+                  padding: '3px 10px', 
+                  borderRadius: '6px', 
+                  background: seconds > 75 ? 'rgba(239,68,68,0.25)' : 'rgba(16, 185, 129, 0.16)', 
+                  color: seconds > 75 ? '#fca5a5' : '#34d399', 
+                  fontWeight: 700, 
+                  fontSize: '0.75rem'
+                }}>
+                  ⌨ Escribiendo ({MAX_ANSWER_SECONDS - seconds}s restantes)
+                </span>
               ) : (
                 <span style={{ fontSize: '0.76rem', color: '#94a3b8' }}>
-                  {seconds > 0 ? 'Grabación finalizada' : 'Micrófono en espera'}
+                  {seconds > 0 ? 'Respuesta enviada' : 'Listo para voz o texto'}
                 </span>
               )}
             </div>
