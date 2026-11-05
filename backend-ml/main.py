@@ -19,6 +19,10 @@ load_dotenv()
 # Rutas de base de datos local SQLite (Persistencia garantizada sin depender de Wi-Fi)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "database", "talentlab.db")
+if not os.path.exists(DB_PATH):
+    alt_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "talentlab.db")
+    if os.path.exists(alt_db):
+        DB_PATH = alt_db
 
 # Configuración de cliente Supabase (opcional para modo híbrido en la nube)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
