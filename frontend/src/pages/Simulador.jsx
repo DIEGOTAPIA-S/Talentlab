@@ -1332,22 +1332,61 @@ export default function Simulador() {
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', padding: '12px 16px', background: 'rgba(168, 85, 247, 0.06)', borderRadius: '12px', border: '1px solid rgba(168, 85, 247, 0.25)', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <img 
-                  src="/avatars/carolina.jpg" 
-                  alt="Dra. Carolina Ortiz" 
-                  style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #a855f7' }} 
-                />
-                <div>
-                  <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#d8b4fe' }}>Dra. Carolina Ortiz</span>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginLeft: '8px' }}>· Especialista Senior en Talento Humano (Filtro 1: Pregunta {Math.min(hrTurns + 1, QUESTIONS_PER_FILTER)} de {QUESTIONS_PER_FILTER})</span>
+            <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'rgba(168, 85, 247, 0.06)', borderRadius: '12px', border: '1px solid rgba(168, 85, 247, 0.25)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <img 
+                    src="/avatars/carolina.jpg" 
+                    alt="Dra. Carolina Ortiz" 
+                    style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #a855f7' }} 
+                  />
+                  <div>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#d8b4fe' }}>Dra. Carolina Ortiz</span>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginLeft: '8px' }}>· Especialista Senior en Talento Humano (Filtro 1: Pregunta {Math.min(hrTurns + 1, QUESTIONS_PER_FILTER)} de {QUESTIONS_PER_FILTER})</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.73rem', padding: '3px 10px', borderRadius: '6px', background: 'rgba(168, 85, 247, 0.15)', color: '#d8b4fe', fontWeight: 600 }}>
+                    Enfoque: Método STAR, Habilidades Blandas y Empatía
+                  </span>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.73rem', padding: '3px 10px', borderRadius: '6px', background: 'rgba(168, 85, 247, 0.15)', color: '#d8b4fe', fontWeight: 600 }}>
-                  Enfoque: Método STAR, Habilidades Blandas y Empatía
+
+              {/* Selector de Carrera / Especialidad Formativa visible desde antes de iniciar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  <i className="fa-solid fa-graduation-cap" style={{ color: '#a855f7', marginRight: '5px' }}></i>
+                  Carrera / Especialidad ({session?.program || 'Autodetectada'}):
                 </span>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {TECHNICAL_PROGRAMS.map(tp => {
+                    const isProgActive = technicalProgram === tp.id;
+                    return (
+                      <button
+                        key={tp.id}
+                        type="button"
+                        onClick={() => handleSelectProgram(tp.id)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          border: `1.5px solid ${isProgActive ? tp.badgeColor : 'rgba(255,255,255,0.1)'}`,
+                          background: isProgActive ? 'rgba(168, 85, 247, 0.22)' : 'rgba(255,255,255,0.03)',
+                          color: isProgActive ? '#fff' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          fontWeight: isProgActive ? 700 : 500,
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <i className={`fa-solid ${tp.icon}`} style={{ color: tp.badgeColor }}></i>
+                        {tp.shortName}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
