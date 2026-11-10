@@ -18,7 +18,15 @@ import Consolidado from './pages/Consolidado'
 import AdminUsuarios from './pages/AdminUsuarios'
 
 function ProfileLayout() {
-  const session = JSON.parse(localStorage.getItem('user_session') || '{}')
+  let session = null
+  try {
+    session = JSON.parse(localStorage.getItem('user_session') || 'null')
+  } catch {
+    session = null
+  }
+  if (!session || !session.email || !session.role) {
+    return <Navigate to="/login" replace />
+  }
   return session.role === 'student' ? <StudentLayout /> : <SidebarLayout />
 }
 

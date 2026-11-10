@@ -1,30 +1,56 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
+import { Link, useLocation, Outlet, useNavigate, Navigate } from 'react-router-dom';
 import TalentLabLogo from './TalentLabLogo';
 
 export default function StudentLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [session, setSession] = useState(() => JSON.parse(localStorage.getItem('user_session') || '{}'));
+  const [session, setSession] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user_session') || 'null');
+    } catch {
+      return null;
+    }
+  });
+
+  // Sincronizar cierre de sesión entre pestañas o ventanas abiertas
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'user_session') {
+        const updated = e.newValue ? JSON.parse(e.newValue) : null;
+        setSession(updated);
+        if (!updated || !updated.email) {
+          navigate('/login', { replace: true });
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [navigate]);
 
   // Sincronización automática con la Base de Datos cuando el Directivo o Admin modifica datos del aprendiz
   useEffect(() => {
-    const current = JSON.parse(localStorage.getItem('user_session') || '{}');
-    const email = current.email || 'estudiante@talentlab.edu';
-    fetch(`${API_BASE_URL}/api/auth/profile?email=${encodeURIComponent(email)}`)
+    const current = JSON.parse(localStorage.getItem('user_session') || 'null');
+    if (!current || !current.email) {
+      setSession(null);
+      return;
+    }
+    fetch(`${API_BASE_URL}/api/auth/profile?email=${encodeURIComponent(current.email)}`)
       .then(res => (res.ok ? res.json() : null))
       .then(dbProf => {
+        const activeNow = JSON.parse(localStorage.getItem('user_session') || 'null');
+        if (!activeNow || !activeNow.email) return;
         if (dbProf && dbProf.email) {
           const updated = {
-            ...current,
-            fullName: dbProf.fullName || current.fullName,
-            institution: dbProf.institution || current.institution,
-            title: dbProf.title || current.title,
-            program: dbProf.program || current.program,
-            phone: dbProf.phone || current.phone,
-            department: dbProf.department || current.department
+            ...activeNow,
+            fullName: dbProf.fullName || activeNow.fullName,
+            institution: dbProf.institution || activeNow.institution,
+            title: dbProf.title || activeNow.title,
+            program: dbProf.program || activeNow.program,
+            phone: dbProf.phone || activeNow.phone,
+            department: dbProf.department || activeNow.department
           };
           localStorage.setItem('user_session', JSON.stringify(updated));
           setSession(updated);
@@ -33,14 +59,20 @@ export default function StudentLayout() {
       .catch(() => {});
   }, [location.pathname]);
 
-  const rawName = session.role === 'student' ? (session.fullName || 'Diego Tapia') : 'Diego Tapia';
+  // Protección estricta de ruta: si no hay sesión activa o el rol no es estudiante, redirigir a /login
+  if (!session || !session.email || session.role !== 'student') {
+    return <Navigate to="/login" replace />;
+  }
+
+  const rawName = session.fullName || 'Diego Tapia';
   const studentName = rawName.replace(/^Dra\.\s*/i, '');
   const institution = session.institution || 'SENA Centro de Tecnologías';
 
   const handleLogout = (e) => {
     e.preventDefault();
     localStorage.removeItem('user_session');
-    navigate('/login');
+    setSession(null);
+    navigate('/login', { replace: true });
   };
 
   return (
